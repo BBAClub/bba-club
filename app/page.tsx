@@ -1,69 +1,400 @@
-import Image from "next/image";
+import HomePageClient from "@/components/HomePageClient";
 
-export default function Home() {
+import {
+  client,
+} from "@/sanity/lib/client";
+
+import {
+  EVENTS_QUERY,
+  PLACES_QUERY,
+} from "@/sanity/lib/queries";
+
+import type {
+  Event,
+} from "@/data/events";
+
+import type {
+  Place,
+} from "@/data/places";
+
+export const dynamic =
+  "force-dynamic";
+
+type SanityEvent = {
+  _id: string;
+
+  title: string;
+  slug: string;
+
+  label?: string;
+
+  status?:
+    | "upcoming"
+    | "past";
+
+  date?: string;
+
+  time?: string;
+  location?: string;
+
+  venue?: string;
+  address?: string;
+
+  description?: string;
+
+  capacity?: number;
+
+  highlights?: string[];
+
+  registrationStatus?:
+    | "coming-soon"
+    | "open"
+    | "closed"
+    | "full";
+
+  registrationUrl?: string;
+
+  registrationDeadline?: string;
+
+  registrationNote?: string;
+};
+
+type SanityPlace = {
+  _id: string;
+
+  name: string;
+
+  category:
+    | "Cafés"
+    | "Food"
+    | "Study"
+    | "Nightlife"
+    | "Outdoors";
+
+  area: string;
+
+  address: string;
+
+  description: string;
+
+  price: string;
+
+  symbol: string;
+
+  latitude: number;
+
+  longitude: number;
+
+  partner?: boolean;
+
+  promoCode?: string;
+
+  promoText?: string;
+};
+
+const monthNames = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+
+function getGradient(
+  label?: string
+) {
+  switch (label) {
+    case "EXPLORE":
+      return "from-[#164B64] via-[#1D596B] to-[#163449]";
+
+    case "COMMUNITY":
+      return "from-[#343064] via-[#243A66] to-[#10243A]";
+
+    default:
+      return "from-[#0057FF] via-[#164EA6] to-[#102B4C]";
+  }
+}
+
+function getTodayInPrague() {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone:
+          "Europe/Prague",
+
+        year: "numeric",
+
+        month: "2-digit",
+
+        day: "2-digit",
+      }
+    ).formatToParts(
+      new Date()
+    );
+
+  const year =
+    parts.find(
+      (part) =>
+        part.type ===
+        "year"
+    )?.value;
+
+  const month =
+    parts.find(
+      (part) =>
+        part.type ===
+        "month"
+    )?.value;
+
+  const day =
+    parts.find(
+      (part) =>
+        part.type ===
+        "day"
+    )?.value;
+
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
+    return new Date()
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function convertSanityEvent(
+  event: SanityEvent,
+  today: string
+): Event | null {
+  if (
+    !event.title ||
+    !event.slug ||
+    !event.date ||
+    !event.time ||
+    !event.location ||
+    !event.description
+  ) {
+    return null;
+  }
+
+  const [
+    ,
+    month,
+    day,
+  ] =
+    event.date.split("-");
+
+  const monthIndex =
+    Number(month) - 1;
+
+  return {
+    slug:
+      event.slug,
+
+    date:
+      String(
+        Number(day)
+      ),
+
+    month:
+      monthNames[
+        monthIndex
+      ] ?? "",
+
+    title:
+      event.title,
+
+    description:
+      event.description,
+
+    fullDescription: [
+      event.description,
+    ],
+
+    location:
+      event.location,
+
+    venue:
+      event.venue ??
+      "Venue to be announced",
+
+    address:
+      event.address,
+
+    time:
+      event.time,
+
+    gradient:
+      getGradient(
+        event.label
+      ),
+
+    label:
+      event.label ??
+      "EVENT",
+
+    status:
+      event.date >= today
+        ? "upcoming"
+        : "past",
+
+    capacity:
+      event.capacity,
+
+    highlights:
+      event.highlights,
+
+    registration: {
+      status:
+        event.registrationStatus ??
+        "coming-soon",
+
+      url:
+        event.registrationUrl,
+
+      deadline:
+        event.registrationDeadline,
+
+      note:
+        event.registrationNote,
+    },
+  };
+}
+
+function convertSanityPlace(
+  place: SanityPlace
+): Place | null {
+  if (
+    !place.name ||
+    !place.category ||
+    !place.area ||
+    !place.address ||
+    !place.description ||
+    !place.price ||
+    !place.symbol ||
+    typeof place.latitude !==
+      "number" ||
+    typeof place.longitude !==
+      "number"
+  ) {
+    return null;
+  }
+
+  return {
+    name:
+      place.name,
+
+    category:
+      place.category,
+
+    area:
+      place.area,
+
+    address:
+      place.address,
+
+    description:
+      place.description,
+
+    price:
+      place.price,
+
+    symbol:
+      place.symbol,
+
+    latitude:
+      place.latitude,
+
+    longitude:
+      place.longitude,
+
+    partner:
+      place.partner ??
+      false,
+
+    promoCode:
+      place.promoCode,
+
+    promoText:
+      place.promoText,
+  };
+}
+
+export default async function Home() {
+  const today =
+    getTodayInPrague();
+
+  const [
+    sanityEvents,
+    sanityPlaces,
+  ] =
+    await Promise.all([
+      client.fetch<
+        SanityEvent[]
+      >(
+        EVENTS_QUERY
+      ),
+
+      client.fetch<
+        SanityPlace[]
+      >(
+        PLACES_QUERY
+      ),
+    ]);
+
+  const events =
+    sanityEvents
+      .slice()
+      .sort(
+        (a, b) =>
+          (
+            a.date ?? ""
+          ).localeCompare(
+            b.date ?? ""
+          )
+      )
+      .map(
+        (event) =>
+          convertSanityEvent(
+            event,
+            today
+          )
+      )
+      .filter(
+        (
+          event
+        ): event is Event =>
+          event !== null
+      );
+
+  const places =
+    sanityPlaces
+      .map(
+        convertSanityPlace
+      )
+      .filter(
+        (
+          place
+        ): place is Place =>
+          place !== null
+      );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <HomePageClient
+      events={events}
+      places={places}
+    />
   );
 }
