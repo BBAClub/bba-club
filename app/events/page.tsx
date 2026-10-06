@@ -6,10 +6,7 @@ import Footer from "@/components/Footer";
 import { client } from "@/sanity/lib/client";
 import { EVENTS_QUERY } from "@/sanity/lib/queries";
 
-import {
-  events as localEvents,
-  type Event,
-} from "@/data/events";
+import type { Event } from "@/data/events";
 
 /*
   Stránka se nebude držet staré statické verze.
@@ -140,65 +137,67 @@ function convertSanityEvent(
   return {
     slug: event.slug,
 
-    /*
-      Pro kartu stále používáme samostatný den + měsíc.
-    */
     date: String(Number(day)),
-    month: monthNames[monthIndex] ?? "",
 
-    /*
-      Celé datum si ale zároveň zachováme
-      pro filtrování a řazení.
-    */
+    month:
+      monthNames[monthIndex] ?? "",
+
     isoDate: event.date,
 
     title: event.title,
 
-    description: event.description,
+    description:
+      event.description,
 
     fullDescription: [
       event.description,
     ],
 
-    location: event.location,
+    location:
+      event.location,
 
     venue:
       event.venue ??
       "Venue to be announced",
 
-    address: event.address,
+    address:
+      event.address,
 
-    time: event.time,
+    time:
+      event.time,
 
-    gradient: getGradient(event.label),
+    gradient:
+      getGradient(
+        event.label
+      ),
 
-    label: event.label ?? "EVENT",
+    label:
+      event.label ??
+      "EVENT",
 
-    /*
-      Status zde necháváme kvůli typu Event
-      a případné kompatibilitě se zbytkem webu.
-
-      Pro Sanity eventy ale Upcoming / Past
-      určujeme níže výhradně podle data.
-    */
     status:
-      event.status ?? "upcoming",
+      event.status ??
+      "upcoming",
 
-    capacity: event.capacity,
+    capacity:
+      event.capacity,
 
-    highlights: event.highlights,
+    highlights:
+      event.highlights,
 
     registration: {
       status:
         event.registrationStatus ??
         "coming-soon",
 
-      url: event.registrationUrl,
+      url:
+        event.registrationUrl,
 
       deadline:
         event.registrationDeadline,
 
-      note: event.registrationNote,
+      note:
+        event.registrationNote,
     },
   };
 }
@@ -209,9 +208,7 @@ function EventCard({
   event: DisplayEvent;
 }) {
   return (
-    <article
-      className="group overflow-hidden rounded-[20px] border border-white/10 bg-[#0D1D2C] transition duration-300 hover:border-[#0057FF]/50 md:rounded-[24px] md:hover:-translate-y-1"
-    >
+    <article className="group overflow-hidden rounded-[20px] border border-white/10 bg-[#0D1D2C] transition duration-300 hover:border-[#0057FF]/50 md:rounded-[24px] md:hover:-translate-y-1">
       {/* DESKTOP COVER */}
       <div
         className={`relative hidden h-48 bg-gradient-to-br ${event.gradient} p-6 md:block`}
@@ -304,13 +301,22 @@ function EventCard({
 
 export default async function EventsPage() {
   const sanityEvents =
-    await client.fetch<SanityEvent[]>(
+    await client.fetch<
+      SanityEvent[]
+    >(
       EVENTS_QUERY
     );
 
-  const convertedSanityEvents =
+  /*
+    Sanity je odteď jediný
+    zdroj eventů pro web.
+  */
+  const events:
+    DisplayEvent[] =
     sanityEvents
-      .map(convertSanityEvent)
+      .map(
+        convertSanityEvent
+      )
       .filter(
         (
           event
@@ -318,90 +324,54 @@ export default async function EventsPage() {
           event !== null
       );
 
-  /*
-    Přechodový režim:
-
-    Sanity event přepíše lokální event
-    se stejným slugem.
-
-    Eventy, které ještě nejsou v Sanity,
-    zůstanou z data/events.ts.
-  */
-  const cmsSlugs = new Set(
-    convertedSanityEvents.map(
-      (event) => event.slug
-    )
-  );
-
-  const remainingLocalEvents:
-    DisplayEvent[] =
-    localEvents.filter(
-      (event) =>
-        !cmsSlugs.has(event.slug)
-    );
-
-  const events: DisplayEvent[] = [
-    ...convertedSanityEvents,
-    ...remainingLocalEvents,
-  ];
-
-  const today = getTodayInPrague();
+  const today =
+    getTodayInPrague();
 
   /*
-    SANITY EVENTY:
-    Rozdělují se automaticky podle isoDate.
-
-    LOKÁLNÍ EVENTY:
-    Zatím používají starý status,
-    dokud je nepřesuneme do Sanity.
+    Eventy se automaticky rozdělí
+    na Upcoming / Past podle data.
   */
-  const upcomingEvents = events
-    .filter((event) => {
-      if (event.isoDate) {
-        return event.isoDate >= today;
-      }
+  const upcomingEvents =
+    events
+      .filter(
+        (event) =>
+          Boolean(
+            event.isoDate &&
+              event.isoDate >=
+                today
+          )
+      )
+      .sort(
+        (a, b) =>
+          (
+            a.isoDate ??
+            ""
+          ).localeCompare(
+            b.isoDate ??
+              ""
+          )
+      );
 
-      return event.status !== "past";
-    })
-    .sort((a, b) => {
-      if (
-        a.isoDate &&
-        b.isoDate
-      ) {
-        return a.isoDate.localeCompare(
-          b.isoDate
-        );
-      }
-
-      if (a.isoDate) return -1;
-      if (b.isoDate) return 1;
-
-      return 0;
-    });
-
-  const pastEvents = events
-    .filter((event) => {
-      if (event.isoDate) {
-        return event.isoDate < today;
-      }
-
-      return event.status === "past";
-    })
-    .sort((a, b) => {
-      if (
-        a.isoDate &&
-        b.isoDate
-      ) {
-        return b.isoDate.localeCompare(
-          a.isoDate
-        );
-      }
-
-      if (a.isoDate) return -1;
-      if (b.isoDate) return 1;
-
-      return 0;
-    });
+  const pastEvents =
+    events
+      .filter(
+        (event) =>
+          Boolean(
+            event.isoDate &&
+              event.isoDate <
+                today
+          )
+      )
+      .sort(
+        (a, b) =>
+          (
+            b.isoDate ??
+            ""
+          ).localeCompare(
+            a.isoDate ??
+              ""
+          )
+      );
 
   return (
     <main className="min-h-screen bg-[#071422] text-[#F6F8FB]">
@@ -426,8 +396,9 @@ export default async function EventsPage() {
           </h1>
 
           <p className="mt-6 max-w-2xl text-base leading-7 text-[#A9B5C3] md:mt-7 md:text-lg md:leading-8">
-            Socials, trips, workshops and
-            everything in between. Find out
+            Socials, trips,
+            workshops and everything
+            in between. Find out
             what&apos;s happening next.
           </p>
         </div>
@@ -446,13 +417,18 @@ export default async function EventsPage() {
             </h2>
           </div>
 
-          {upcomingEvents.length > 0 ? (
+          {upcomingEvents.length >
+          0 ? (
             <div className="grid gap-4 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
               {upcomingEvents.map(
                 (event) => (
                   <EventCard
-                    key={event.slug}
-                    event={event}
+                    key={
+                      event.slug
+                    }
+                    event={
+                      event
+                    }
                   />
                 )
               )}
@@ -460,12 +436,13 @@ export default async function EventsPage() {
           ) : (
             <div className="rounded-[22px] border border-dashed border-white/15 bg-white/[0.02] p-7 text-center md:rounded-[28px] md:p-12">
               <p className="font-medium md:text-lg">
-                No upcoming events yet.
+                No upcoming events
+                yet.
               </p>
 
               <p className="mt-2 text-sm text-[#71869A]">
-                New events will appear here
-                soon.
+                New events will
+                appear here soon.
               </p>
             </div>
           )}
@@ -484,18 +461,24 @@ export default async function EventsPage() {
           </h2>
 
           <p className="mt-4 max-w-xl text-sm leading-6 text-[#A9B5C3] md:text-base">
-            As BBA Club grows, this will
-            become the archive of everything
+            As BBA Club grows,
+            this will become the
+            archive of everything
             we&apos;ve done together.
           </p>
 
-          {pastEvents.length > 0 ? (
+          {pastEvents.length >
+          0 ? (
             <div className="mt-7 grid gap-4 md:mt-10 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
               {pastEvents.map(
                 (event) => (
                   <EventCard
-                    key={event.slug}
-                    event={event}
+                    key={
+                      event.slug
+                    }
+                    event={
+                      event
+                    }
                   />
                 )
               )}
@@ -503,12 +486,14 @@ export default async function EventsPage() {
           ) : (
             <div className="mt-7 rounded-[22px] border border-dashed border-white/15 bg-white/[0.02] p-7 text-center md:mt-10 md:rounded-[28px] md:p-12">
               <p className="font-medium md:text-lg">
-                Past events will appear here.
+                Past events will
+                appear here.
               </p>
 
               <p className="mt-2 text-sm text-[#71869A]">
-                Photos and event recaps can
-                be added later.
+                Photos and event
+                recaps can be added
+                later.
               </p>
             </div>
           )}
