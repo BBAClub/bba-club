@@ -67,7 +67,18 @@ export const EVENT_BY_SLUG_QUERY = `
     registrationStatus,
     registrationUrl,
     registrationDeadline,
-    registrationNote
+    registrationNote,
+
+    "confirmedRegistrations": count(
+      *[
+        _type == "eventRegistration"
+        && event._ref == ^._id
+        && status in [
+          "confirmed",
+          "checked-in"
+        ]
+      ]
+    )
   }
 `;
 
