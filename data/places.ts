@@ -24,6 +24,10 @@ export type Place = {
 
   symbol: string;
 
+  coverImageUrl?: string;
+
+  coverImageAlt?: string;
+
   latitude: number;
 
   longitude: number;

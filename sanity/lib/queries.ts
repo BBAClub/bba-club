@@ -93,6 +93,10 @@ export const PLACES_QUERY = `
     description,
     price,
     symbol,
+
+    "coverImageUrl": coverImage.asset->url,
+    "coverImageAlt": coverImage.alt,
+
     latitude,
     longitude,
     partner,

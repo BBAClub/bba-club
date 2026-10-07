@@ -37,6 +37,10 @@ type SanityPlace = {
 
   symbol: string;
 
+  coverImageUrl?: string;
+
+  coverImageAlt?: string;
+
   latitude: number;
 
   longitude: number;
@@ -88,6 +92,12 @@ function convertSanityPlace(
 
     symbol:
       place.symbol,
+
+    coverImageUrl:
+      place.coverImageUrl,
+
+    coverImageAlt:
+      place.coverImageAlt,
 
     latitude:
       place.latitude,

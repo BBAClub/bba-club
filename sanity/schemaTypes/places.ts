@@ -100,6 +100,24 @@ export const placeType = defineType({
     }),
 
     defineField({
+      name: "coverImage",
+      title: "Cover Image",
+      type: "image",
+      options: {
+        hotspot: true,
+      },
+      fields: [
+        defineField({
+          name: "alt",
+          title: "Alt Text",
+          type: "string",
+          description:
+            "Short description of the image for accessibility.",
+        }),
+      ],
+    }),
+
+    defineField({
       name: "latitude",
       title: "Latitude",
       type: "number",
@@ -156,6 +174,7 @@ export const placeType = defineType({
       area: "area",
       partner: "partner",
       symbol: "symbol",
+      media: "coverImage",
     },
 
     prepare({
@@ -164,12 +183,14 @@ export const placeType = defineType({
       area,
       partner,
       symbol,
+      media,
     }) {
       return {
         title: `${symbol ?? "📍"} ${title}`,
         subtitle: `${category} · ${area}${
           partner ? " · Partner" : ""
         }`,
+        media,
       };
     },
   },

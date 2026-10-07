@@ -167,6 +167,7 @@ export default function ExploreClient({
       <Navbar />
 
       {/* HERO */}
+
       <section className="relative overflow-hidden border-b border-white/10 px-6 py-14 md:py-20 lg:px-10">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(0,87,255,0.16),transparent_34%)]" />
 
@@ -203,9 +204,11 @@ export default function ExploreClient({
 
               <p className="mt-2 text-sm leading-6 text-[#A9B5C3] md:mt-3 md:text-base md:leading-7">
                 Look for the{" "}
+
                 <span className="font-semibold text-white">
                   BBA Club Perk
                 </span>{" "}
+
                 badge. Partner venues may
                 offer special discounts or
                 benefits to our community.
@@ -216,9 +219,11 @@ export default function ExploreClient({
       </section>
 
       {/* MAIN GUIDE */}
+
       <section className="px-6 py-12 md:py-16 lg:px-10">
         <div className="mx-auto max-w-7xl">
           {/* SEARCH */}
+
           <div className="mb-4 md:mb-6">
             <input
               type="text"
@@ -236,6 +241,7 @@ export default function ExploreClient({
           </div>
 
           {/* FILTERS */}
+
           <div className="mb-7 flex flex-wrap gap-2 md:mb-10 md:gap-3">
             {categories.map(
               (category) => (
@@ -276,6 +282,7 @@ export default function ExploreClient({
           </div>
 
           {/* MOBILE */}
+
           <div className="space-y-3 lg:hidden">
             {filteredPlaces.length >
             0 ? (
@@ -299,6 +306,46 @@ export default function ExploreClient({
                             : "border-white/10 bg-[#0B1A29]"
                         }`}
                       >
+                        {place.coverImageUrl && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toggleMobilePlace(
+                                place
+                              )
+                            }
+                            className="relative block h-44 w-full overflow-hidden text-left"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={
+                                place.coverImageUrl
+                              }
+                              alt={
+                                place.coverImageAlt ??
+                                place.name
+                              }
+                              className="h-full w-full object-cover"
+                            />
+
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/80 via-transparent to-transparent" />
+
+                            <div className="absolute bottom-3 left-3 flex items-center gap-2">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#071422]/80 text-lg backdrop-blur-sm">
+                                {
+                                  place.symbol
+                                }
+                              </div>
+
+                              {place.partner && (
+                                <span className="rounded-full border border-[#0057FF]/40 bg-[#071422]/80 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF] backdrop-blur-sm">
+                                  BBA Perk
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() =>
@@ -309,17 +356,19 @@ export default function ExploreClient({
                           className="w-full p-4 text-left"
                         >
                           <div className="flex items-start gap-3">
-                            <div
-                              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
-                                isOpen
-                                  ? "bg-[#0057FF]"
-                                  : "bg-white/5"
-                              }`}
-                            >
-                              {
-                                place.symbol
-                              }
-                            </div>
+                            {!place.coverImageUrl && (
+                              <div
+                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xl ${
+                                  isOpen
+                                    ? "bg-[#0057FF]"
+                                    : "bg-white/5"
+                                }`}
+                              >
+                                {
+                                  place.symbol
+                                }
+                              </div>
+                            )}
 
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
@@ -331,12 +380,13 @@ export default function ExploreClient({
                                       }
                                     </h2>
 
-                                    {place.partner && (
-                                      <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF]">
-                                        BBA
-                                        Perk
-                                      </span>
-                                    )}
+                                    {place.partner &&
+                                      !place.coverImageUrl && (
+                                        <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF]">
+                                          BBA
+                                          Perk
+                                        </span>
+                                      )}
                                   </div>
 
                                   <p className="mt-1 text-xs text-[#71869A]">
@@ -387,7 +437,7 @@ export default function ExploreClient({
                         {isOpen && (
                           <div className="border-t border-white/10 px-4 pb-4 pt-4">
                             {place.partner &&
-                              place.promoCode ? (
+                            place.promoCode ? (
                               <div className="rounded-xl border border-[#0057FF]/30 bg-[#0057FF]/10 p-4">
                                 <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#8EC5FF]">
                                   BBA
@@ -463,8 +513,10 @@ export default function ExploreClient({
           </div>
 
           {/* DESKTOP */}
+
           <div className="hidden gap-7 lg:grid lg:grid-cols-[0.85fr_1.15fr]">
             {/* LIST */}
+
             <div className="space-y-3">
               {filteredPlaces.length >
               0 ? (
@@ -480,7 +532,7 @@ export default function ExploreClient({
                           place
                         )
                       }
-                      className={`group flex w-full items-center gap-5 rounded-[20px] border p-5 text-left transition ${
+                      className={`group flex w-full items-center gap-5 overflow-hidden rounded-[20px] border p-5 text-left transition ${
                         desktopVisiblePlace
                           ?.name ===
                         place.name
@@ -488,19 +540,35 @@ export default function ExploreClient({
                           : "border-white/10 bg-[#0B1A29] hover:border-white/20 hover:bg-[#0E2032]"
                       }`}
                     >
-                      <div
-                        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${
-                          desktopVisiblePlace
-                            ?.name ===
-                          place.name
-                            ? "bg-[#0057FF]"
-                            : "bg-white/5"
-                        }`}
-                      >
-                        {
-                          place.symbol
-                        }
-                      </div>
+                      {place.coverImageUrl ? (
+                        <div className="h-20 w-24 shrink-0 overflow-hidden rounded-2xl bg-white/5">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={
+                              place.coverImageUrl
+                            }
+                            alt={
+                              place.coverImageAlt ??
+                              place.name
+                            }
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl ${
+                            desktopVisiblePlace
+                              ?.name ===
+                            place.name
+                              ? "bg-[#0057FF]"
+                              : "bg-white/5"
+                          }`}
+                        >
+                          {
+                            place.symbol
+                          }
+                        </div>
+                      )}
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -529,13 +597,13 @@ export default function ExploreClient({
                           }
                         </p>
 
-                        <p className="mt-2 text-sm leading-5 text-[#A9B5C3]">
+                        <p className="mt-2 line-clamp-2 text-sm leading-5 text-[#A9B5C3]">
                           {
                             place.description
                           }
                         </p>
 
-                        <p className="mt-2 text-xs text-[#53687D]">
+                        <p className="mt-2 truncate text-xs text-[#53687D]">
                           {
                             place.address
                           }
@@ -566,6 +634,7 @@ export default function ExploreClient({
             </div>
 
             {/* MAP */}
+
             <div className="sticky top-24 self-start">
               <PragueMap
                 placesToShow={
@@ -580,96 +649,124 @@ export default function ExploreClient({
               />
 
               {desktopVisiblePlace && (
-                <div className="mt-5 rounded-[28px] border border-white/10 bg-[#0B1A29] p-7">
-                  <div className="flex items-start gap-5">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#0057FF] text-2xl">
-                      {
-                        desktopVisiblePlace.symbol
-                      }
-                    </div>
+                <div className="mt-5 overflow-hidden rounded-[28px] border border-white/10 bg-[#0B1A29]">
+                  {desktopVisiblePlace.coverImageUrl && (
+                    <div className="relative h-64 w-full overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={
+                          desktopVisiblePlace.coverImageUrl
+                        }
+                        alt={
+                          desktopVisiblePlace.coverImageAlt ??
+                          desktopVisiblePlace.name
+                        }
+                        className="h-full w-full object-cover"
+                      />
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8EC5FF]">
-                          {
-                            desktopVisiblePlace.category
-                          }
-                        </p>
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0B1A29] via-transparent to-transparent" />
 
-                        {desktopVisiblePlace.partner && (
-                          <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8EC5FF]">
-                            BBA
-                            Club
-                            Perk
-                          </span>
-                        )}
+                      <div className="absolute bottom-5 left-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#071422]/85 text-2xl backdrop-blur-sm">
+                        {
+                          desktopVisiblePlace.symbol
+                        }
                       </div>
-
-                      <div className="mt-1 flex items-center justify-between gap-3">
-                        <h3 className="text-2xl font-semibold">
-                          {
-                            desktopVisiblePlace.name
-                          }
-                        </h3>
-
-                        <span className="text-sm text-[#8EC5FF]">
-                          {
-                            desktopVisiblePlace.price
-                          }
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-sm text-[#71869A]">
-                        {
-                          desktopVisiblePlace.area
-                        }
-                      </p>
-
-                      <p className="mt-1 text-sm text-[#53687D]">
-                        {
-                          desktopVisiblePlace.address
-                        }
-                      </p>
-
-                      <p className="mt-4 leading-7 text-[#A9B5C3]">
-                        {
-                          desktopVisiblePlace.description
-                        }
-                      </p>
                     </div>
-                  </div>
+                  )}
 
-                  {desktopVisiblePlace.partner &&
-                    desktopVisiblePlace.promoCode && (
-                      <div className="mt-6 border-t border-white/10 pt-6">
-                        <div className="rounded-2xl border border-[#0057FF]/30 bg-[#0057FF]/10 p-5">
-                          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8EC5FF]">
-                            BBA
-                            Club
-                            Perk
-                          </p>
+                  <div className="p-7">
+                    <div className="flex items-start gap-5">
+                      {!desktopVisiblePlace.coverImageUrl && (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-[#0057FF] text-2xl">
+                          {
+                            desktopVisiblePlace.symbol
+                          }
+                        </div>
+                      )}
 
-                          <p className="mt-3 font-semibold">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8EC5FF]">
                             {
-                              desktopVisiblePlace.promoText
+                              desktopVisiblePlace.category
                             }
                           </p>
 
-                          <div className="mt-4 inline-block rounded-xl bg-[#071422] px-5 py-3">
-                            <p className="text-[10px] uppercase tracking-[0.14em] text-[#53687D]">
-                              Promo
-                              code
+                          {desktopVisiblePlace.partner && (
+                            <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8EC5FF]">
+                              BBA
+                              Club
+                              Perk
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="mt-1 flex items-center justify-between gap-3">
+                          <h3 className="text-2xl font-semibold">
+                            {
+                              desktopVisiblePlace.name
+                            }
+                          </h3>
+
+                          <span className="text-sm text-[#8EC5FF]">
+                            {
+                              desktopVisiblePlace.price
+                            }
+                          </span>
+                        </div>
+
+                        <p className="mt-1 text-sm text-[#71869A]">
+                          {
+                            desktopVisiblePlace.area
+                          }
+                        </p>
+
+                        <p className="mt-1 text-sm text-[#53687D]">
+                          {
+                            desktopVisiblePlace.address
+                          }
+                        </p>
+
+                        <p className="mt-4 leading-7 text-[#A9B5C3]">
+                          {
+                            desktopVisiblePlace.description
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    {desktopVisiblePlace.partner &&
+                      desktopVisiblePlace.promoCode && (
+                        <div className="mt-6 border-t border-white/10 pt-6">
+                          <div className="rounded-2xl border border-[#0057FF]/30 bg-[#0057FF]/10 p-5">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8EC5FF]">
+                              BBA
+                              Club
+                              Perk
                             </p>
 
-                            <p className="mt-1 font-mono font-bold tracking-wider">
+                            <p className="mt-3 font-semibold">
                               {
-                                desktopVisiblePlace.promoCode
+                                desktopVisiblePlace.promoText
                               }
                             </p>
+
+                            <div className="mt-4 inline-block rounded-xl bg-[#071422] px-5 py-3">
+                              <p className="text-[10px] uppercase tracking-[0.14em] text-[#53687D]">
+                                Promo
+                                code
+                              </p>
+
+                              <p className="mt-1 font-mono font-bold tracking-wider">
+                                {
+                                  desktopVisiblePlace.promoCode
+                                }
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                  </div>
                 </div>
               )}
             </div>
@@ -678,6 +775,7 @@ export default function ExploreClient({
       </section>
 
       {/* PARTNERS */}
+
       <section className="border-t border-white/10 bg-[#091725] px-6 py-16 md:py-24 lg:px-10">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.7fr] lg:items-center lg:gap-12">
           <div>
@@ -698,30 +796,48 @@ export default function ExploreClient({
           </div>
 
           {featuredPartner ? (
-            <div className="rounded-[22px] border border-[#0057FF]/30 bg-[#0D2035] p-6 md:rounded-[26px] md:p-7">
-              <p className="text-xs font-semibold text-[#8EC5FF] md:text-sm">
-                BBA Club Perk
-              </p>
+            <div className="overflow-hidden rounded-[22px] border border-[#0057FF]/30 bg-[#0D2035] md:rounded-[26px]">
+              {featuredPartner.coverImageUrl && (
+                <div className="h-40 overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      featuredPartner.coverImageUrl
+                    }
+                    alt={
+                      featuredPartner.coverImageAlt ??
+                      featuredPartner.name
+                    }
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
 
-              <p className="mt-3 text-xl font-semibold md:mt-4 md:text-2xl">
-                {
-                  featuredPartner.promoText
-                }{" "}
-                at{" "}
-                {
-                  featuredPartner.name
-                }
-              </p>
+              <div className="p-6 md:p-7">
+                <p className="text-xs font-semibold text-[#8EC5FF] md:text-sm">
+                  BBA Club Perk
+                </p>
 
-              <p className="mt-3 text-sm leading-6 text-[#A9B5C3] md:text-base">
-                Show or enter your BBA Club
-                code when ordering.
-              </p>
+                <p className="mt-3 text-xl font-semibold md:mt-4 md:text-2xl">
+                  {
+                    featuredPartner.promoText
+                  }{" "}
+                  at{" "}
+                  {
+                    featuredPartner.name
+                  }
+                </p>
 
-              <div className="mt-5 inline-flex rounded-xl bg-[#071422] px-4 py-3 font-mono text-sm font-bold tracking-wider md:mt-6 md:px-5 md:text-base">
-                {
-                  featuredPartner.promoCode
-                }
+                <p className="mt-3 text-sm leading-6 text-[#A9B5C3] md:text-base">
+                  Show or enter your BBA Club
+                  code when ordering.
+                </p>
+
+                <div className="mt-5 inline-flex rounded-xl bg-[#071422] px-4 py-3 font-mono text-sm font-bold tracking-wider md:mt-6 md:px-5 md:text-base">
+                  {
+                    featuredPartner.promoCode
+                  }
+                </div>
               </div>
             </div>
           ) : (
