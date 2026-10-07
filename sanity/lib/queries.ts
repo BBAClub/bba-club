@@ -112,6 +112,36 @@ export const PLACES_QUERY = `
   }
 `;
 
+export const TEAM_MEMBERS_QUERY = `
+  *[
+    _type == "teamMember"
+    && coalesce(
+      isActive,
+      true
+    ) == true
+  ]
+  | order(
+      order asc,
+      name asc
+    ) {
+    _id,
+    name,
+    role,
+    description,
+
+    "profileImageUrl":
+      profileImage.asset->url,
+
+    "profileImageAlt":
+      profileImage.alt,
+
+    linkedinUrl,
+    instagramUrl,
+    order,
+    isActive
+  }
+`;
+
 export const STUDY_RESOURCES_QUERY = `
   *[
     _type == "studyResource"

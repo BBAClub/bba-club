@@ -4,6 +4,8 @@ import { homepageSettingsType } from "./homepageSettings";
 
 import { placeType } from "./places";
 
+import { teamMemberType } from "./teamMember";
+
 import { studyResourceType } from "./studyResource";
 
 import { submissionType } from "./submission";
@@ -16,6 +18,8 @@ export const schemaTypes = [
   homepageSettingsType,
 
   placeType,
+
+  teamMemberType,
 
   studyResourceType,
 
