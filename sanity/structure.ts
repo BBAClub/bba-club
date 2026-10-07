@@ -7,14 +7,17 @@ export const structure: StructureResolver =
     /*
       Běžné document types.
 
-      Submission a Event Registration
-      odstraníme z automatického seznamu,
-      protože pro ně máme vlastní admin sekce.
+      Study Resource, Submission a
+      Event Registration odstraníme
+      z automatického seznamu,
+      protože pro ně máme vlastní sekce.
     */
 
     const regularDocumentTypes =
       S.documentTypeListItems().filter(
         (item) =>
+          item.getId() !==
+            "studyResource" &&
           item.getId() !==
             "submission" &&
           item.getId() !==
@@ -25,6 +28,113 @@ export const structure: StructureResolver =
       .title("Content")
       .items([
         ...regularDocumentTypes,
+
+        S.divider(),
+
+        /*
+          STUDY HUB
+        */
+
+        S.listItem()
+          .title("Study Hub")
+          .child(
+            S.list()
+              .title("Study Hub")
+              .items([
+                /*
+                  PUBLISHED
+                */
+
+                S.listItem()
+                  .title("Published Resources")
+                  .child(
+                    S.documentList()
+                      .title(
+                        "Published Resources"
+                      )
+                      .schemaType(
+                        "studyResource"
+                      )
+                      .filter(
+                        '_type == "studyResource" && isPublished == true'
+                      )
+                      .defaultOrdering([
+                        {
+                          field:
+                            "order",
+                          direction:
+                            "asc",
+                        },
+                        {
+                          field:
+                            "title",
+                          direction:
+                            "asc",
+                        },
+                      ])
+                  ),
+
+                /*
+                  UNPUBLISHED / LEGACY
+                */
+
+                S.listItem()
+                  .title(
+                    "Unpublished Resources"
+                  )
+                  .child(
+                    S.documentList()
+                      .title(
+                        "Unpublished Resources"
+                      )
+                      .schemaType(
+                        "studyResource"
+                      )
+                      .filter(
+                        '_type == "studyResource" && coalesce(isPublished, false) == false'
+                      )
+                      .defaultOrdering([
+                        {
+                          field:
+                            "_updatedAt",
+                          direction:
+                            "desc",
+                        },
+                      ])
+                  ),
+
+                S.divider(),
+
+                /*
+                  ALL RESOURCES
+                */
+
+                S.listItem()
+                  .title(
+                    "All Resources"
+                  )
+                  .child(
+                    S.documentList()
+                      .title(
+                        "All Study Resources"
+                      )
+                      .schemaType(
+                        "studyResource"
+                      )
+                      .filter(
+                        '_type == "studyResource"'
+                      )
+                      .defaultOrdering([
+                        {
+                          field:
+                            "_updatedAt",
+                          direction:
+                            "desc",
+                        },
+                      ])
+                  ),
+              ])
+          ),
 
         S.divider(),
 
