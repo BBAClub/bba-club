@@ -16,6 +16,7 @@ export const EVENTS_QUERY = `
     address,
     description,
     capacity,
+    price,
     highlights,
     registrationStatus,
     registrationUrl,
@@ -49,6 +50,7 @@ export const EVENT_BY_SLUG_QUERY = `
     },
 
     capacity,
+    price,
     highlights,
     registrationStatus,
     registrationUrl,

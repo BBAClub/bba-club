@@ -44,6 +44,8 @@ type SanityEvent = {
 
   capacity?: number;
 
+  price?: number;
+
   highlights?: string[];
 
   registrationStatus?:
@@ -235,6 +237,9 @@ function convertSanityEvent(
 
     time:
       event.time,
+
+    price:
+      event.price,
 
     gradient:
       getGradient(

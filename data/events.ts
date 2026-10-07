@@ -1,4 +1,6 @@
-export type EventStatus = "upcoming" | "past";
+export type EventStatus =
+  | "upcoming"
+  | "past";
 
 export type RegistrationStatus =
   | "coming-soon"
@@ -21,6 +23,14 @@ export type Event = {
   address?: string;
 
   time: string;
+
+  /*
+    Cena vstupu v CZK.
+
+    0 = zdarma
+    undefined = cena zatím není uvedena
+  */
+  price?: number;
 
   gradient: string;
   label: string;
@@ -57,9 +67,12 @@ export const events: Event[] = [
     ],
 
     location: "Prague",
-    venue: "Venue to be announced",
+    venue:
+      "Venue to be announced",
 
     time: "19:00",
+
+    price: 0,
 
     gradient:
       "from-[#0057FF] via-[#164EA6] to-[#102B4C]",
@@ -76,7 +89,8 @@ export const events: Event[] = [
 
     registration: {
       status: "coming-soon",
-      note: "Registration details will be announced later.",
+      note:
+        "Registration details will be announced later.",
     },
   },
 
@@ -97,9 +111,12 @@ export const events: Event[] = [
     ],
 
     location: "Prague 1",
-    venue: "Meeting point to be announced",
+    venue:
+      "Meeting point to be announced",
 
     time: "14:00",
+
+    price: 0,
 
     gradient:
       "from-[#164B64] via-[#1D596B] to-[#163449]",
@@ -116,7 +133,8 @@ export const events: Event[] = [
 
     registration: {
       status: "coming-soon",
-      note: "Registration details will be announced later.",
+      note:
+        "Registration details will be announced later.",
     },
   },
 
@@ -126,7 +144,8 @@ export const events: Event[] = [
     date: "26",
     month: "APR",
 
-    title: "BBA Community Night",
+    title:
+      "BBA Community Night",
 
     description:
       "An evening to meet people from across the programme.",
@@ -137,9 +156,12 @@ export const events: Event[] = [
     ],
 
     location: "Prague",
-    venue: "Venue to be announced",
+    venue:
+      "Venue to be announced",
 
     time: "19:00",
+
+    price: 0,
 
     gradient:
       "from-[#343064] via-[#243A66] to-[#10243A]",
@@ -156,7 +178,8 @@ export const events: Event[] = [
 
     registration: {
       status: "coming-soon",
-      note: "Registration details will be announced later.",
+      note:
+        "Registration details will be announced later.",
     },
   },
 ];

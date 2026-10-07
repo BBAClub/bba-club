@@ -295,6 +295,14 @@ export default function HomePageClient({
                           <span>
                             ◷ {event.time}
                           </span>
+
+                          {event.price !== undefined && (
+                            <span className="font-semibold text-[#8EC5FF]">
+                              {event.price === 0
+                                ? "Free"
+                                : `${event.price} CZK`}
+                            </span>
+                          )}
                         </div>
 
                         <Link

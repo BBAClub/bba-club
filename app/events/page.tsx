@@ -19,21 +19,34 @@ type SanityEvent = {
   _id: string;
   title: string;
   slug: string;
+
   label?: string;
-  status?: "upcoming" | "past";
+
+  status?:
+    | "upcoming"
+    | "past";
+
   date?: string;
   time?: string;
+
   location?: string;
   venue?: string;
   address?: string;
+
   description?: string;
+
   capacity?: number;
+
+  price?: number;
+
   highlights?: string[];
+
   registrationStatus?:
     | "coming-soon"
     | "open"
     | "closed"
     | "full";
+
   registrationUrl?: string;
   registrationDeadline?: string;
   registrationNote?: string;
@@ -67,7 +80,9 @@ const monthNames = [
   "DEC",
 ];
 
-function getGradient(label?: string) {
+function getGradient(
+  label?: string
+) {
   switch (label) {
     case "EXPLORE":
       return "from-[#164B64] via-[#1D596B] to-[#163449]";
@@ -82,31 +97,48 @@ function getGradient(label?: string) {
 
 /*
   Vrátí dnešní datum v Praze ve formátu YYYY-MM-DD.
-
-  Používáme Prague timezone, aby se event nepřesunul
-  do Past Events podle UTC o několik hodin dříve / později.
 */
 function getTodayInPrague() {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Prague",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone:
+          "Europe/Prague",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }
+    ).formatToParts(
+      new Date()
+    );
 
-  const year = parts.find(
-    (part) => part.type === "year"
-  )?.value;
+  const year =
+    parts.find(
+      (part) =>
+        part.type ===
+        "year"
+    )?.value;
 
-  const month = parts.find(
-    (part) => part.type === "month"
-  )?.value;
+  const month =
+    parts.find(
+      (part) =>
+        part.type ===
+        "month"
+    )?.value;
 
-  const day = parts.find(
-    (part) => part.type === "day"
-  )?.value;
+  const day =
+    parts.find(
+      (part) =>
+        part.type ===
+        "day"
+    )?.value;
 
-  if (!year || !month || !day) {
+  if (
+    !year ||
+    !month ||
+    !day
+  ) {
     return new Date()
       .toISOString()
       .slice(0, 10);
@@ -129,22 +161,35 @@ function convertSanityEvent(
     return null;
   }
 
-  const [, month, day] =
+  const [
+    ,
+    month,
+    day,
+  ] =
     event.date.split("-");
 
-  const monthIndex = Number(month) - 1;
+  const monthIndex =
+    Number(month) - 1;
 
   return {
-    slug: event.slug,
+    slug:
+      event.slug,
 
-    date: String(Number(day)),
+    date:
+      String(
+        Number(day)
+      ),
 
     month:
-      monthNames[monthIndex] ?? "",
+      monthNames[
+        monthIndex
+      ] ?? "",
 
-    isoDate: event.date,
+    isoDate:
+      event.date,
 
-    title: event.title,
+    title:
+      event.title,
 
     description:
       event.description,
@@ -165,6 +210,9 @@ function convertSanityEvent(
 
     time:
       event.time,
+
+    price:
+      event.price,
 
     gradient:
       getGradient(
@@ -202,11 +250,32 @@ function convertSanityEvent(
   };
 }
 
+function formatPrice(
+  price?: number
+) {
+  if (
+    price === undefined
+  ) {
+    return null;
+  }
+
+  if (price === 0) {
+    return "Free";
+  }
+
+  return `${price} CZK`;
+}
+
 function EventCard({
   event,
 }: {
   event: DisplayEvent;
 }) {
+  const price =
+    formatPrice(
+      event.price
+    );
+
   return (
     <article className="group overflow-hidden rounded-[20px] border border-white/10 bg-[#0D1D2C] transition duration-300 hover:border-[#0057FF]/50 md:rounded-[24px] md:hover:-translate-y-1">
       {/* DESKTOP COVER */}
@@ -277,6 +346,12 @@ function EventCard({
             <span>
               ◷ {event.time}
             </span>
+
+            {price && (
+              <span className="font-semibold text-[#8EC5FF]">
+                {price}
+              </span>
+            )}
           </div>
 
           <Link
@@ -308,7 +383,7 @@ export default async function EventsPage() {
     );
 
   /*
-    Sanity je odteď jediný
+    Sanity je jediný
     zdroj eventů pro web.
   */
   const events:
@@ -327,10 +402,6 @@ export default async function EventsPage() {
   const today =
     getTodayInPrague();
 
-  /*
-    Eventy se automaticky rozdělí
-    na Upcoming / Past podle data.
-  */
   const upcomingEvents =
     events
       .filter(

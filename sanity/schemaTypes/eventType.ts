@@ -1,4 +1,8 @@
-import {defineArrayMember, defineField, defineType} from "sanity";
+import {
+  defineArrayMember,
+  defineField,
+  defineType,
+} from "sanity";
 
 export const eventType = defineType({
   name: "event",
@@ -10,7 +14,8 @@ export const eventType = defineType({
       name: "title",
       title: "Title",
       type: "string",
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
@@ -21,7 +26,8 @@ export const eventType = defineType({
         source: "title",
         maxLength: 96,
       },
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
@@ -30,7 +36,8 @@ export const eventType = defineType({
       type: "string",
       description:
         "For example SOCIAL, EXPLORE or COMMUNITY.",
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
@@ -40,35 +47,47 @@ export const eventType = defineType({
       initialValue: "upcoming",
       options: {
         list: [
-          {title: "Upcoming", value: "upcoming"},
-          {title: "Past", value: "past"},
+          {
+            title: "Upcoming",
+            value: "upcoming",
+          },
+          {
+            title: "Past",
+            value: "past",
+          },
         ],
         layout: "radio",
       },
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
       name: "date",
       title: "Date",
       type: "date",
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
       name: "time",
       title: "Time",
       type: "string",
-      description: "Example: 19:00",
-      validation: (rule) => rule.required(),
+      description:
+        "Example: 19:00",
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
       name: "location",
       title: "Location",
       type: "string",
-      description: "Example: Prague 1",
-      validation: (rule) => rule.required(),
+      description:
+        "Example: Prague 1",
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
@@ -92,7 +111,8 @@ export const eventType = defineType({
       rows: 3,
       description:
         "Used on event cards and overview pages.",
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
@@ -114,6 +134,20 @@ export const eventType = defineType({
       type: "number",
       validation: (rule) =>
         rule.min(1).integer(),
+    }),
+
+    defineField({
+      name: "price",
+      title: "Ticket Price (CZK)",
+      type: "number",
+      description:
+        "Price per person in CZK. Enter 0 for a free event.",
+      initialValue: 0,
+      validation: (rule) =>
+        rule
+          .required()
+          .min(0)
+          .integer(),
     }),
 
     defineField({
@@ -153,7 +187,8 @@ export const eventType = defineType({
         ],
         layout: "radio",
       },
-      validation: (rule) => rule.required(),
+      validation: (rule) =>
+        rule.required(),
     }),
 
     defineField({
@@ -161,7 +196,8 @@ export const eventType = defineType({
       title: "Registration URL",
       type: "url",
       hidden: ({document}) =>
-        document?.registrationStatus !== "open",
+        document?.registrationStatus !==
+        "open",
     }),
 
     defineField({
@@ -183,12 +219,29 @@ export const eventType = defineType({
       title: "title",
       date: "date",
       status: "status",
+      price: "price",
     },
 
-    prepare({title, date, status}) {
+    prepare({
+      title,
+      date,
+      status,
+      price,
+    }) {
+      const formattedPrice =
+        price === 0
+          ? "Free"
+          : typeof price === "number"
+            ? `${price} CZK`
+            : undefined;
+
       return {
         title,
-        subtitle: [date, status]
+        subtitle: [
+          date,
+          status,
+          formattedPrice,
+        ]
           .filter(Boolean)
           .join(" · "),
       };
