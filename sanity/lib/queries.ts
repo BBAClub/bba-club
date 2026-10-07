@@ -15,6 +15,10 @@ export const EVENTS_QUERY = `
     venue,
     address,
     description,
+
+    "coverImageUrl": coverImage.asset->url,
+    "coverImageAlt": coverImage.alt,
+
     capacity,
     price,
     highlights,
@@ -47,6 +51,14 @@ export const EVENT_BY_SLUG_QUERY = `
       children[] {
         text
       }
+    },
+
+    "coverImageUrl": coverImage.asset->url,
+    "coverImageAlt": coverImage.alt,
+
+    gallery[] {
+      "url": asset->url,
+      alt
     },
 
     capacity,

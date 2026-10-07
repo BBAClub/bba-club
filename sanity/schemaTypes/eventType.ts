@@ -129,6 +129,49 @@ export const eventType = defineType({
     }),
 
     defineField({
+      name: "coverImage",
+      title: "Cover Image",
+      type: "image",
+      description:
+        "Main image used on the homepage, event cards and event detail.",
+      options: {
+        hotspot: true,
+      },
+      fields: [
+        defineField({
+          name: "alt",
+          title: "Alternative Text",
+          type: "string",
+          description:
+            "Short description of the image for accessibility.",
+        }),
+      ],
+    }),
+
+    defineField({
+      name: "gallery",
+      title: "Event Gallery",
+      type: "array",
+      description:
+        "Additional photos shown on the event detail page.",
+      of: [
+        defineArrayMember({
+          type: "image",
+          options: {
+            hotspot: true,
+          },
+          fields: [
+            defineField({
+              name: "alt",
+              title: "Alternative Text",
+              type: "string",
+            }),
+          ],
+        }),
+      ],
+    }),
+
+    defineField({
       name: "capacity",
       title: "Capacity",
       type: "number",
@@ -195,7 +238,7 @@ export const eventType = defineType({
       name: "registrationUrl",
       title: "Registration URL",
       type: "url",
-      hidden: ({document}) =>
+      hidden: ({ document }) =>
         document?.registrationStatus !==
         "open",
     }),
@@ -220,6 +263,7 @@ export const eventType = defineType({
       date: "date",
       status: "status",
       price: "price",
+      media: "coverImage",
     },
 
     prepare({
@@ -227,6 +271,7 @@ export const eventType = defineType({
       date,
       status,
       price,
+      media,
     }) {
       const formattedPrice =
         price === 0
@@ -237,6 +282,7 @@ export const eventType = defineType({
 
       return {
         title,
+        media,
         subtitle: [
           date,
           status,

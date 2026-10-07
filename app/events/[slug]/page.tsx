@@ -6,56 +6,13 @@ import Footer from "@/components/Footer";
 import EventRegistrationForm from "@/components/EventRegistrationForm";
 
 import { client } from "@/sanity/lib/client";
+import { EVENT_BY_SLUG_QUERY } from "@/sanity/lib/queries";
 
-import {
-  events as localEvents,
-  type Event,
-  type RegistrationStatus,
+import type {
+  Event,
+  EventGalleryImage,
+  RegistrationStatus,
 } from "@/data/events";
-
-const EVENT_BY_SLUG_QUERY = `
-  *[
-    _type == "event"
-    && slug.current == $slug
-  ][0] {
-    _id,
-    title,
-    "slug": slug.current,
-    label,
-    status,
-    date,
-    time,
-    location,
-    venue,
-    address,
-    description,
-
-    fullDescription[] {
-      _type,
-      children[] {
-        text
-      }
-    },
-
-    capacity,
-    highlights,
-    registrationStatus,
-    registrationUrl,
-    registrationDeadline,
-    registrationNote,
-
-    "confirmedRegistrations": count(
-      *[
-        _type == "eventRegistration"
-        && event._ref == ^._id
-        && status in [
-          "confirmed",
-          "checked-in"
-        ]
-      ]
-    )
-  }
-`;
 
 type EventDetailPageProps = {
   params: Promise<{
@@ -69,6 +26,11 @@ type SanityPortableBlock = {
   children?: {
     text?: string;
   }[];
+};
+
+type SanityGalleryImage = {
+  url?: string;
+  alt?: string;
 };
 
 type SanityEvent = {
@@ -112,6 +74,13 @@ type SanityEvent = {
   registrationDeadline?: string;
 
   registrationNote?: string;
+
+  price?: number;
+
+  coverImageUrl?: string;
+  coverImageAlt?: string;
+
+  gallery?: SanityGalleryImage[];
 };
 
 const monthNames = [
@@ -167,6 +136,27 @@ function portableTextToParagraphs(
       ): paragraph is string =>
         Boolean(paragraph)
     );
+}
+
+function convertGallery(
+  gallery?: SanityGalleryImage[]
+): EventGalleryImage[] {
+  if (!gallery) {
+    return [];
+  }
+
+  return gallery
+    .filter(
+      (
+        image
+      ): image is SanityGalleryImage & {
+        url: string;
+      } => Boolean(image.url)
+    )
+    .map((image) => ({
+      url: image.url,
+      alt: image.alt,
+    }));
 }
 
 function convertSanityEvent(
@@ -250,6 +240,20 @@ function convertSanityEvent(
 
     highlights:
       sanityEvent.highlights,
+
+    price:
+      sanityEvent.price,
+
+    coverImageUrl:
+      sanityEvent.coverImageUrl,
+
+    coverImageAlt:
+      sanityEvent.coverImageAlt,
+
+    gallery:
+      convertGallery(
+        sanityEvent.gallery
+      ),
 
     registration: {
       status:
@@ -344,16 +348,27 @@ function formatDeadline(
   ).format(parsed);
 }
 
+function formatPrice(
+  price?: number
+) {
+  if (
+    typeof price !== "number"
+  ) {
+    return "To be confirmed";
+  }
+
+  if (price === 0) {
+    return "Free";
+  }
+
+  return `${price} CZK`;
+}
+
 export default async function EventDetailPage({
   params,
 }: EventDetailPageProps) {
   const { slug } =
     await params;
-
-  /*
-    1. Nejprve hledáme event
-       v Sanity.
-  */
 
   const sanityEvent =
     await client.fetch<
@@ -365,31 +380,14 @@ export default async function EventDetailPage({
       }
     );
 
-  /*
-    2. Pokud je v Sanity,
-       převedeme ho do stejného
-       formátu, jaký používá web.
-
-    3. Pokud v Sanity ještě není,
-       použijeme data/events.ts.
-  */
-
-  const cmsEvent =
-    sanityEvent
-      ? convertSanityEvent(
-          sanityEvent
-        )
-      : null;
-
-  const localEvent =
-    localEvents.find(
-      (item) =>
-        item.slug === slug
-    );
+  if (!sanityEvent) {
+    notFound();
+  }
 
   const event =
-    cmsEvent ??
-    localEvent;
+    convertSanityEvent(
+      sanityEvent
+    );
 
   if (!event) {
     notFound();
@@ -404,7 +402,7 @@ export default async function EventDetailPage({
 
   const confirmedRegistrations =
     sanityEvent
-      ?.confirmedRegistrations ??
+      .confirmedRegistrations ??
     0;
 
   const remainingSpots =
@@ -445,29 +443,6 @@ export default async function EventDetailPage({
     formatDeadline(
       event.registration
         .deadline
-    );
-
-  /*
-    Interní registration flow
-    funguje pouze pro event,
-    který existuje v Sanity.
-
-    Local fallback zatím dál
-    používá původní URL.
-  */
-
-  const hasInternalRegistration =
-    Boolean(
-      sanityEvent &&
-        cmsEvent
-    );
-
-  const legacyRegistrationIsOpen =
-    !hasInternalRegistration &&
-    effectiveRegistrationStatus ===
-      "open" &&
-    Boolean(
-      event.registration.url
     );
 
   return (
@@ -515,19 +490,48 @@ export default async function EventDetailPage({
               </p>
             </div>
 
-            {/* DATE CARD */}
+            {/* COVER / DATE CARD */}
 
             <div
-              className={`relative overflow-hidden rounded-[24px] bg-gradient-to-br ${event.gradient} p-6 md:p-8`}
+              className={`relative min-h-[300px] overflow-hidden rounded-[24px] bg-gradient-to-br ${event.gradient} p-6 md:min-h-[360px] md:p-8`}
+              style={
+                event.coverImageUrl
+                  ? {
+                      backgroundImage: `url("${event.coverImageUrl}")`,
+                      backgroundPosition:
+                        "center",
+                      backgroundSize:
+                        "cover",
+                    }
+                  : undefined
+              }
+              role={
+                event.coverImageUrl
+                  ? "img"
+                  : undefined
+              }
+              aria-label={
+                event.coverImageUrl
+                  ? event.coverImageAlt ??
+                    event.title
+                  : undefined
+              }
             >
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.15),transparent_30%)]" />
+              {event.coverImageUrl ? (
+                <>
+                  <div className="absolute inset-0 bg-black/35" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/90 via-[#071422]/30 to-transparent" />
+                </>
+              ) : (
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.15),transparent_30%)]" />
+              )}
 
-              <div className="relative">
+              <div className="relative flex min-h-[252px] flex-col justify-end md:min-h-[296px]">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
                   Save the date
                 </p>
 
-                <div className="mt-6 flex items-end justify-between gap-6">
+                <div className="mt-5 flex items-end justify-between gap-6">
                   <div>
                     <p className="text-lg font-semibold text-[#8EC5FF]">
                       {
@@ -637,6 +641,20 @@ export default async function EventDetailPage({
                 </p>
               </div>
 
+              {/* PRICE */}
+
+              <div className="rounded-[18px] border border-white/10 bg-[#0B1A29] p-5">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71869A]">
+                  Ticket price
+                </p>
+
+                <p className="mt-2 font-semibold">
+                  {formatPrice(
+                    event.price
+                  )}
+                </p>
+              </div>
+
               {/* CAPACITY */}
 
               <div className="rounded-[18px] border border-white/10 bg-[#0B1A29] p-5">
@@ -650,33 +668,32 @@ export default async function EventDetailPage({
                     : "To be confirmed"}
                 </p>
 
-                {hasInternalRegistration &&
-                  typeof remainingSpots ===
-                    "number" && (
-                    <p
-                      className={`mt-1 text-sm ${
-                        remainingSpots >
-                        0
-                          ? "text-[#8EC5FF]"
-                          : "text-[#71869A]"
-                      }`}
-                    >
-                      {remainingSpots >
+                {typeof remainingSpots ===
+                  "number" && (
+                  <p
+                    className={`mt-1 text-sm ${
+                      remainingSpots >
                       0
-                        ? `${remainingSpots} ${
-                            remainingSpots ===
-                            1
-                              ? "spot"
-                              : "spots"
-                          } left`
-                        : "Waitlist only"}
-                    </p>
-                  )}
+                        ? "text-[#8EC5FF]"
+                        : "text-[#71869A]"
+                    }`}
+                  >
+                    {remainingSpots >
+                    0
+                      ? `${remainingSpots} ${
+                          remainingSpots ===
+                          1
+                            ? "spot"
+                            : "spots"
+                        } left`
+                      : "Waitlist only"}
+                  </p>
+                )}
               </div>
 
               {/* REGISTRATION */}
 
-              <div className="rounded-[18px] border border-white/10 bg-[#0B1A29] p-5">
+              <div className="rounded-[18px] border border-white/10 bg-[#0B1A29] p-5 sm:col-span-2">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71869A]">
                   Registration
                 </p>
@@ -741,103 +758,90 @@ export default async function EventDetailPage({
                   </div>
                 </div>
               )}
+
+            {/* GALLERY */}
+
+            {event.gallery &&
+              event.gallery.length >
+                0 && (
+                <div className="mt-12">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8EC5FF]">
+                    Gallery
+                  </p>
+
+                  <h2 className="mt-3 text-2xl font-bold tracking-[-0.03em] md:text-3xl">
+                    From the event.
+                  </h2>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    {event.gallery.map(
+                      (
+                        image,
+                        index
+                      ) => (
+                        <div
+                          key={`${image.url}-${index}`}
+                          className={`overflow-hidden rounded-[20px] border border-white/10 bg-[#0B1A29] ${
+                            index === 0 &&
+                            event
+                              .gallery!
+                              .length %
+                              2 ===
+                              1
+                              ? "sm:col-span-2"
+                              : ""
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={
+                              image.url
+                            }
+                            alt={
+                              image.alt ??
+                              `${event.title} gallery photo ${
+                                index +
+                                1
+                              }`
+                            }
+                            loading="lazy"
+                            className={`w-full object-cover transition duration-500 hover:scale-[1.02] ${
+                              index ===
+                                0 &&
+                              event
+                                .gallery!
+                                .length %
+                                2 ===
+                                1
+                                ? "aspect-[16/8]"
+                                : "aspect-[4/3]"
+                            }`}
+                          />
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
           </div>
 
           {/* RIGHT / REGISTRATION */}
 
           <aside className="self-start lg:sticky lg:top-24">
-            {hasInternalRegistration ? (
-              <EventRegistrationForm
-                eventSlug={
-                  event.slug
-                }
-                eventTitle={
-                  event.title
-                }
-                registrationStatus={
-                  effectiveRegistrationStatus
-                }
-                capacity={
-                  event.capacity
-                }
-              />
-            ) : (
-              /*
-                Legacy fallback pro eventy,
-                které ještě nejsou v Sanity.
-              */
-
-              <div className="rounded-[24px] border border-[#0057FF]/30 bg-[#0D2035] p-6 md:p-8">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8EC5FF]">
-                    Registration
-                  </p>
-
-                  <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#8EC5FF]">
-                    {
-                      registration.label
-                    }
-                  </span>
-                </div>
-
-                <h2 className="mt-4 text-2xl font-semibold">
-                  Want to join?
-                </h2>
-
-                <p className="mt-3 text-sm leading-6 text-[#A9B5C3] md:text-base md:leading-7">
-                  {event
-                    .registration
-                    .note ??
-                    "Registration information will appear here."}
-                </p>
-
-                {formattedDeadline && (
-                  <div className="mt-5 rounded-xl border border-white/10 bg-[#071422]/60 p-4">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-[#71869A]">
-                      Registration
-                      deadline
-                    </p>
-
-                    <p className="mt-2 font-semibold">
-                      {
-                        formattedDeadline
-                      }
-                    </p>
-                  </div>
-                )}
-
-                {legacyRegistrationIsOpen ? (
-                  <a
-                    href={
-                      event
-                        .registration
-                        .url
-                    }
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-6 block w-full rounded-xl bg-[#0057FF] px-5 py-3.5 text-center font-semibold transition hover:bg-[#2874FF]"
-                  >
-                    {
-                      registration.button
-                    }
-                  </a>
-                ) : (
-                  <div className="mt-6 w-full cursor-not-allowed rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-center font-semibold text-[#71869A]">
-                    {
-                      registration.button
-                    }
-                  </div>
-                )}
-
-                <p className="mt-4 text-xs leading-5 text-[#53687D]">
-                  Event details may
-                  change. Check this
-                  page again before
-                  the event for the
-                  latest information.
-                </p>
-              </div>
-            )}
+            <EventRegistrationForm
+              eventSlug={
+                event.slug
+              }
+              eventTitle={
+                event.title
+              }
+              registrationStatus={
+                effectiveRegistrationStatus
+              }
+              capacity={
+                event.capacity
+              }
+            />
           </aside>
         </div>
       </section>

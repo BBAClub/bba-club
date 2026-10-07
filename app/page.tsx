@@ -42,6 +42,9 @@ type SanityEvent = {
 
   description?: string;
 
+  coverImageUrl?: string;
+  coverImageAlt?: string;
+
   capacity?: number;
 
   price?: number;
@@ -132,11 +135,14 @@ function getTodayInPrague() {
         timeZone:
           "Europe/Prague",
 
-        year: "numeric",
+        year:
+          "numeric",
 
-        month: "2-digit",
+        month:
+          "2-digit",
 
-        day: "2-digit",
+        day:
+          "2-digit",
       }
     ).formatToParts(
       new Date()
@@ -170,7 +176,10 @@ function getTodayInPrague() {
   ) {
     return new Date()
       .toISOString()
-      .slice(0, 10);
+      .slice(
+        0,
+        10
+      );
   }
 
   return `${year}-${month}-${day}`;
@@ -196,7 +205,9 @@ function convertSanityEvent(
     month,
     day,
   ] =
-    event.date.split("-");
+    event.date.split(
+      "-"
+    );
 
   const monthIndex =
     Number(month) - 1;
@@ -241,6 +252,12 @@ function convertSanityEvent(
     price:
       event.price,
 
+    coverImageUrl:
+      event.coverImageUrl,
+
+    coverImageAlt:
+      event.coverImageAlt,
+
     gradient:
       getGradient(
         event.label
@@ -251,7 +268,8 @@ function convertSanityEvent(
       "EVENT",
 
     status:
-      event.date >= today
+      event.date >=
+      today
         ? "upcoming"
         : "past",
 
@@ -365,9 +383,11 @@ export default async function Home() {
       .sort(
         (a, b) =>
           (
-            a.date ?? ""
+            a.date ??
+            ""
           ).localeCompare(
-            b.date ?? ""
+            b.date ??
+              ""
           )
       )
       .map(

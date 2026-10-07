@@ -3,20 +3,24 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
-import { client } from "@/sanity/lib/client";
-import { EVENTS_QUERY } from "@/sanity/lib/queries";
+import {
+  client,
+} from "@/sanity/lib/client";
 
-import type { Event } from "@/data/events";
+import {
+  EVENTS_QUERY,
+} from "@/sanity/lib/queries";
 
-/*
-  Stránka se nebude držet staré statické verze.
-  Díky tomu se rozdělení Upcoming / Past přepočítá
-  podle aktuálního dne při načtení stránky.
-*/
-export const dynamic = "force-dynamic";
+import type {
+  Event,
+} from "@/data/events";
+
+export const dynamic =
+  "force-dynamic";
 
 type SanityEvent = {
   _id: string;
+
   title: string;
   slug: string;
 
@@ -27,13 +31,20 @@ type SanityEvent = {
     | "past";
 
   date?: string;
+
   time?: string;
 
   location?: string;
+
   venue?: string;
+
   address?: string;
 
   description?: string;
+
+  coverImageUrl?: string;
+
+  coverImageAlt?: string;
 
   capacity?: number;
 
@@ -48,22 +59,16 @@ type SanityEvent = {
     | "full";
 
   registrationUrl?: string;
+
   registrationDeadline?: string;
+
   registrationNote?: string;
 };
 
-/*
-  Event používaný přímo na této stránce.
-
-  isoDate uchovává celé datum ze Sanity:
-  například "2026-10-15".
-
-  To potřebujeme pro automatické rozdělování
-  Upcoming / Past.
-*/
-type DisplayEvent = Event & {
-  isoDate?: string;
-};
+type DisplayEvent =
+  Event & {
+    isoDate?: string;
+  };
 
 const monthNames = [
   "JAN",
@@ -95,9 +100,6 @@ function getGradient(
   }
 }
 
-/*
-  Vrátí dnešní datum v Praze ve formátu YYYY-MM-DD.
-*/
 function getTodayInPrague() {
   const parts =
     new Intl.DateTimeFormat(
@@ -105,9 +107,15 @@ function getTodayInPrague() {
       {
         timeZone:
           "Europe/Prague",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
       }
     ).formatToParts(
       new Date()
@@ -141,7 +149,10 @@ function getTodayInPrague() {
   ) {
     return new Date()
       .toISOString()
-      .slice(0, 10);
+      .slice(
+        0,
+        10
+      );
   }
 
   return `${year}-${month}-${day}`;
@@ -166,7 +177,9 @@ function convertSanityEvent(
     month,
     day,
   ] =
-    event.date.split("-");
+    event.date.split(
+      "-"
+    );
 
   const monthIndex =
     Number(month) - 1;
@@ -214,6 +227,12 @@ function convertSanityEvent(
     price:
       event.price,
 
+    coverImageUrl:
+      event.coverImageUrl,
+
+    coverImageAlt:
+      event.coverImageAlt,
+
     gradient:
       getGradient(
         event.label
@@ -254,12 +273,15 @@ function formatPrice(
   price?: number
 ) {
   if (
-    price === undefined
+    price ===
+    undefined
   ) {
     return null;
   }
 
-  if (price === 0) {
+  if (
+    price === 0
+  ) {
     return "Free";
   }
 
@@ -278,19 +300,49 @@ function EventCard({
 
   return (
     <article className="group overflow-hidden rounded-[20px] border border-white/10 bg-[#0D1D2C] transition duration-300 hover:border-[#0057FF]/50 md:rounded-[24px] md:hover:-translate-y-1">
+
       {/* DESKTOP COVER */}
       <div
-        className={`relative hidden h-48 bg-gradient-to-br ${event.gradient} p-6 md:block`}
+        className={`relative hidden h-48 overflow-hidden bg-gradient-to-br ${event.gradient} p-6 md:block`}
+        style={
+          event.coverImageUrl
+            ? {
+                backgroundImage:
+                  `url("${event.coverImageUrl}")`,
+
+                backgroundSize:
+                  "cover",
+
+                backgroundPosition:
+                  "center",
+              }
+            : undefined
+        }
+        role={
+          event.coverImageUrl
+            ? "img"
+            : undefined
+        }
+        aria-label={
+          event.coverImageUrl
+            ? event.coverImageAlt ??
+              event.title
+            : undefined
+        }
       >
+        {event.coverImageUrl && (
+          <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/80 via-[#071422]/20 to-black/20" />
+        )}
+
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,255,255,0.15),transparent_28%)]" />
 
         <div className="relative flex h-full flex-col justify-between">
           <div className="flex items-start justify-between">
-            <span className="rounded-full border border-white/15 bg-black/15 px-3 py-1.5 text-[11px] font-semibold tracking-[0.16em] text-white/80">
+            <span className="rounded-full border border-white/15 bg-[#071422]/70 px-3 py-1.5 text-[11px] font-semibold tracking-[0.16em] text-white/90 backdrop-blur-sm">
               {event.label}
             </span>
 
-            <div className="rounded-xl bg-[#071422]/80 px-3 py-2 text-center">
+            <div className="rounded-xl border border-white/10 bg-[#071422]/80 px-3 py-2 text-center backdrop-blur-sm">
               <div className="text-xs font-semibold text-[#8EC5FF]">
                 {event.month}
               </div>
@@ -305,8 +357,27 @@ function EventCard({
         </div>
       </div>
 
+      {/* MOBILE COVER */}
+      {event.coverImageUrl && (
+        <div
+          className="relative h-40 bg-cover bg-center md:hidden"
+          style={{
+            backgroundImage:
+              `url("${event.coverImageUrl}")`,
+          }}
+          role="img"
+          aria-label={
+            event.coverImageAlt ??
+            event.title
+          }
+        >
+          <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/70 via-transparent to-black/10" />
+        </div>
+      )}
+
       {/* CONTENT */}
       <div className="relative p-5 md:p-6">
+
         {/* MOBILE ACCENT */}
         <div
           className={`absolute inset-y-0 left-0 w-1.5 bg-gradient-to-b ${event.gradient} md:hidden`}
@@ -382,10 +453,6 @@ export default async function EventsPage() {
       EVENTS_QUERY
     );
 
-  /*
-    Sanity je jediný
-    zdroj eventů pro web.
-  */
   const events:
     DisplayEvent[] =
     sanityEvents

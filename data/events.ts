@@ -8,6 +8,11 @@ export type RegistrationStatus =
   | "closed"
   | "full";
 
+export type EventGalleryImage = {
+  url: string;
+  alt?: string;
+};
+
 export type Event = {
   slug: string;
 
@@ -32,7 +37,23 @@ export type Event = {
   */
   price?: number;
 
+  /*
+    Hlavní fotka eventu ze Sanity.
+  */
+  coverImageUrl?: string;
+  coverImageAlt?: string;
+
+  /*
+    Fotky zobrazované na detailu eventu.
+  */
+  gallery?: EventGalleryImage[];
+
+  /*
+    Fallback v případě, že event
+    ještě nemá nahranou fotku.
+  */
   gradient: string;
+
   label: string;
 
   status: EventStatus;
@@ -67,6 +88,7 @@ export const events: Event[] = [
     ],
 
     location: "Prague",
+
     venue:
       "Venue to be announced",
 
@@ -88,7 +110,9 @@ export const events: Event[] = [
     ],
 
     registration: {
-      status: "coming-soon",
+      status:
+        "coming-soon",
+
       note:
         "Registration details will be announced later.",
     },
@@ -111,6 +135,7 @@ export const events: Event[] = [
     ],
 
     location: "Prague 1",
+
     venue:
       "Meeting point to be announced",
 
@@ -132,14 +157,17 @@ export const events: Event[] = [
     ],
 
     registration: {
-      status: "coming-soon",
+      status:
+        "coming-soon",
+
       note:
         "Registration details will be announced later.",
     },
   },
 
   {
-    slug: "bba-community-night",
+    slug:
+      "bba-community-night",
 
     date: "26",
     month: "APR",
@@ -156,6 +184,7 @@ export const events: Event[] = [
     ],
 
     location: "Prague",
+
     venue:
       "Venue to be announced",
 
@@ -177,7 +206,9 @@ export const events: Event[] = [
     ],
 
     registration: {
-      status: "coming-soon",
+      status:
+        "coming-soon",
+
       note:
         "Registration details will be announced later.",
     },
