@@ -6,6 +6,7 @@ import {
 
 import {
   EVENTS_QUERY,
+  HOMEPAGE_SETTINGS_QUERY,
   PLACES_QUERY,
 } from "@/sanity/lib/queries";
 
@@ -86,6 +87,10 @@ type SanityPlace = {
 
   symbol: string;
 
+  coverImageUrl?: string;
+
+  coverImageAlt?: string;
+
   latitude: number;
 
   longitude: number;
@@ -95,6 +100,12 @@ type SanityPlace = {
   promoCode?: string;
 
   promoText?: string;
+};
+
+type SanityHomepageSettings = {
+  heroImageUrl?: string;
+
+  heroImageAlt?: string;
 };
 
 const monthNames = [
@@ -337,6 +348,12 @@ function convertSanityPlace(
     symbol:
       place.symbol,
 
+    coverImageUrl:
+      place.coverImageUrl,
+
+    coverImageAlt:
+      place.coverImageAlt,
+
     latitude:
       place.latitude,
 
@@ -362,6 +379,7 @@ export default async function Home() {
   const [
     sanityEvents,
     sanityPlaces,
+    homepageSettings,
   ] =
     await Promise.all([
       client.fetch<
@@ -374,6 +392,12 @@ export default async function Home() {
         SanityPlace[]
       >(
         PLACES_QUERY
+      ),
+
+      client.fetch<
+        SanityHomepageSettings | null
+      >(
+        HOMEPAGE_SETTINGS_QUERY
       ),
     ]);
 
@@ -420,6 +444,14 @@ export default async function Home() {
     <HomePageClient
       events={events}
       places={places}
+      heroImageUrl={
+        homepageSettings
+          ?.heroImageUrl
+      }
+      heroImageAlt={
+        homepageSettings
+          ?.heroImageAlt
+      }
     />
   );
 }

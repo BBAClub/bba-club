@@ -1,5 +1,7 @@
 import { eventType } from "./eventType";
 
+import { homepageSettingsType } from "./homepageSettings";
+
 import { placeType } from "./places";
 
 import { studyResourceType } from "./studyResource";
@@ -10,6 +12,8 @@ import { eventRegistrationType } from "./eventRegistration";
 
 export const schemaTypes = [
   eventType,
+
+  homepageSettingsType,
 
   placeType,
 

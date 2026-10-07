@@ -82,6 +82,13 @@ export const EVENT_BY_SLUG_QUERY = `
   }
 `;
 
+export const HOMEPAGE_SETTINGS_QUERY = `
+  *[_type == "homepageSettings"][0] {
+    "heroImageUrl": heroImage.asset->url,
+    "heroImageAlt": heroImage.alt
+  }
+`;
+
 export const PLACES_QUERY = `
   *[_type == "place"]
   | order(name asc) {
