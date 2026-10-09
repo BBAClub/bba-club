@@ -1,24 +1,50 @@
-import { NextResponse } from "next/server";
+import {
+  NextResponse,
+} from "next/server";
 
-import { randomUUID } from "node:crypto";
+import {
+  randomUUID,
+} from "node:crypto";
 
-import { client } from "@/sanity/lib/client";
+import {
+  client,
+} from "@/sanity/lib/client";
 
 import {
   sendEventRegistrationEmail,
 } from "@/lib/email/sendEventRegistrationEmail";
 
 import {
+  cancelComgatePayment,
+} from "@/lib/payments/comgate";
+
+import {
+  promoteWaitlist,
+  type PromotedRegistration,
+  type PromotionEvent,
+} from "@/lib/events/promoteWaitlist";
+
+import {
   isAdminAuthenticated,
 } from "@/lib/admin/auth";
 
-export const runtime = "nodejs";
+export const runtime =
+  "nodejs";
 
 type RegistrationStatus =
+  | "pending-payment"
   | "confirmed"
   | "waitlist"
   | "cancelled"
   | "checked-in";
+
+type PaymentStatus =
+  | "not_required"
+  | "pay_on_site"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
 type AdminAction =
   | "confirm"
@@ -26,27 +52,6 @@ type AdminAction =
   | "cancel"
   | "check-in"
   | "undo-check-in";
-
-type EventInfo = {
-  _id: string;
-
-  title?: string;
-
-  date?: string;
-  time?: string;
-
-  venue?: string;
-  location?: string;
-  address?: string;
-
-  capacity?: number;
-
-  registrationStatus?:
-    | "coming-soon"
-    | "open"
-    | "closed"
-    | "full";
-};
 
 type Registration = {
   _id: string;
@@ -61,13 +66,28 @@ type Registration = {
 
   registeredAt?: string;
 
+  paymentStatus?: PaymentStatus;
+
+  paymentProvider?: string;
+
+  paymentTransactionId?: string;
+
+  paymentRedirectUrl?: string;
+
+  paymentAmount?: number;
+
+  paymentCurrency?: string;
+
+  reservationExpiresAt?: string;
+
   eventId?: string;
 
-  event?: EventInfo;
+  event?: PromotionEvent;
 };
 
 type RequestBody = {
   registrationId?: unknown;
+
   action?: unknown;
 };
 
@@ -83,12 +103,27 @@ const REGISTRATION_FIELDS = `
   ticketCode,
   registeredAt,
 
-  "eventId": event._ref,
+  paymentStatus,
+  paymentProvider,
+
+  paymentTransactionId,
+  paymentRedirectUrl,
+
+  paymentAmount,
+  paymentCurrency,
+
+  reservationExpiresAt,
+
+  "eventId":
+    event._ref,
 
   "event": event->{
     _id,
 
     title,
+
+    "slug":
+      slug.current,
 
     date,
     time,
@@ -98,6 +133,8 @@ const REGISTRATION_FIELDS = `
     address,
 
     capacity,
+    price,
+
     registrationStatus
   }
 `;
@@ -111,6 +148,68 @@ function getString(
     : "";
 }
 
+function paymentsEnabled() {
+  return (
+    process.env
+      .COMGATE_PAYMENTS_ENABLED ===
+    "true"
+  );
+}
+
+function getSiteOrigin(
+  request: Request
+) {
+  const configured =
+    process.env
+      .NEXT_PUBLIC_SITE_URL
+      ?.trim()
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  if (configured) {
+    return configured;
+  }
+
+  return new URL(
+    request.url
+  ).origin;
+}
+
+function getEventPrice(
+  event?: PromotionEvent
+) {
+  if (
+    typeof event?.price !==
+      "number" ||
+    !Number.isFinite(
+      event.price
+    ) ||
+    event.price <= 0
+  ) {
+    return 0;
+  }
+
+  return event.price;
+}
+
+function paymentSatisfied(
+  registration: Registration
+) {
+  return (
+    registration
+      .paymentStatus ===
+      "paid" ||
+    registration
+      .paymentStatus ===
+      "pay_on_site" ||
+    registration
+      .paymentProvider ===
+      "manual"
+  );
+}
+
 async function getRegistration(
   registrationId: string
 ) {
@@ -119,8 +218,11 @@ async function getRegistration(
   >(
     `
       *[
-        _type == "eventRegistration"
-        && _id == $registrationId
+        _type ==
+          "eventRegistration"
+
+        && _id ==
+          $registrationId
       ][0] {
         ${REGISTRATION_FIELDS}
       }
@@ -133,7 +235,9 @@ async function getRegistration(
 
 async function patchStatus(
   registrationId: string,
-  status: RegistrationStatus
+
+  status:
+    RegistrationStatus
 ) {
   const token =
     process.env
@@ -148,18 +252,23 @@ async function patchStatus(
   const writeClient =
     client.withConfig({
       token,
-      useCdn: false,
+
+      useCdn:
+        false,
     });
 
   let patch =
     writeClient
-      .patch(registrationId)
+      .patch(
+        registrationId
+      )
       .set({
         status,
       });
 
   if (
-    status === "checked-in"
+    status ===
+    "checked-in"
   ) {
     patch =
       patch.set({
@@ -178,7 +287,8 @@ async function patchStatus(
 }
 
 async function ensureTicketCode(
-  registration: Registration
+  registration:
+    Registration
 ) {
   if (
     registration.ticketCode
@@ -200,7 +310,9 @@ async function ensureTicketCode(
   const writeClient =
     client.withConfig({
       token,
-      useCdn: false,
+
+      useCdn:
+        false,
     });
 
   const ticketCode =
@@ -219,7 +331,8 @@ async function ensureTicketCode(
 }
 
 async function getWaitlistPosition(
-  registration: Registration
+  registration:
+    Registration
 ) {
   if (
     !registration.eventId ||
@@ -232,10 +345,17 @@ async function getWaitlistPosition(
     `
       count(
         *[
-          _type == "eventRegistration"
-          && event._ref == $eventId
-          && status == "waitlist"
-          && registeredAt <= $registeredAt
+          _type ==
+            "eventRegistration"
+
+          && event._ref ==
+            $eventId
+
+          && status ==
+            "waitlist"
+
+          && registeredAt <=
+            $registeredAt
         ]
       )
     `,
@@ -250,7 +370,8 @@ async function getWaitlistPosition(
 }
 
 async function sendStatusEmail(
-  registration: Registration,
+  registration:
+    Registration,
 
   status:
     | "confirmed"
@@ -327,17 +448,24 @@ async function sendStatusEmail(
   const writeClient =
     client.withConfig({
       token,
-      useCdn: false,
+
+      useCdn:
+        false,
     });
 
   const emailPatch:
-    Record<string, string> = {
+    Record<
+      string,
+      string
+    > = {
       confirmationEmailSentAt:
         new Date()
           .toISOString(),
     };
 
-  if (emailResult.emailId) {
+  if (
+    emailResult.emailId
+  ) {
     emailPatch.confirmationEmailId =
       emailResult.emailId;
   }
@@ -346,14 +474,25 @@ async function sendStatusEmail(
     .patch(
       registration._id
     )
-    .set(emailPatch)
+    .set(
+      emailPatch
+    )
     .commit();
 
   return true;
 }
 
+/*
+  Capacity includes:
+
+  - confirmed
+  - checked-in
+  - active Comgate reservation
+*/
+
 async function checkCapacity(
-  registration: Registration
+  registration:
+    Registration
 ) {
   const event =
     registration.event;
@@ -378,18 +517,47 @@ async function checkCapacity(
     return;
   }
 
+  const now =
+    new Date()
+      .toISOString();
+
   const occupied =
     await client.fetch<number>(
       `
         count(
           *[
-            _type == "eventRegistration"
-            && event._ref == $eventId
-            && _id != $registrationId
-            && status in [
-              "confirmed",
-              "checked-in"
-            ]
+            _type ==
+              "eventRegistration"
+
+            && event._ref ==
+              $eventId
+
+            && _id !=
+              $registrationId
+
+            && (
+              status in [
+                "confirmed",
+                "checked-in"
+              ]
+
+              ||
+
+              (
+                status ==
+                  "pending-payment"
+
+                && paymentStatus ==
+                  "pending"
+
+                && defined(
+                  reservationExpiresAt
+                )
+
+                && reservationExpiresAt >
+                  $now
+              )
+            )
           ]
         )
       `,
@@ -398,6 +566,8 @@ async function checkCapacity(
 
         registrationId:
           registration._id,
+
+        now,
       }
     );
 
@@ -411,137 +581,153 @@ async function checkCapacity(
   }
 }
 
-async function promoteWaitlist(
-  eventId: string,
-  event: EventInfo,
-  excludeRegistrationId?: string
+/*
+  If an admin tries to remove an
+  active payment reservation, cancel
+  Comgate before releasing the seat.
+*/
+
+async function cancelPendingPayment(
+  registration:
+    Registration
 ) {
   if (
-    event.registrationStatus ===
-    "closed"
+    registration.status !==
+      "pending-payment" ||
+    registration
+      .paymentProvider !==
+      "comgate" ||
+    !registration
+      .paymentTransactionId
   ) {
-    return [];
+    return;
   }
 
-  if (
-    typeof event.capacity !==
-      "number" ||
-    event.capacity <= 0
-  ) {
-    return [];
-  }
-
-  const occupied =
-    await client.fetch<number>(
-      `
-        count(
-          *[
-            _type == "eventRegistration"
-            && event._ref == $eventId
-            && status in [
-              "confirmed",
-              "checked-in"
-            ]
-          ]
-        )
-      `,
-      {
-        eventId,
-      }
-    );
-
-  const freeSpots =
-    Math.max(
-      event.capacity -
-        occupied,
-      0
+  const cancellation =
+    await cancelComgatePayment(
+      registration
+        .paymentTransactionId
     );
 
   if (
-    freeSpots <= 0
+    cancellation.status ===
+      "PAID" ||
+    cancellation.status ===
+      "AUTHORIZED"
+  ) {
+    throw new Error(
+      "The payment has already been completed or authorized. Wait for the payment status to finish processing before changing this registration."
+    );
+  }
+
+  if (
+    cancellation.status ===
+    "PENDING"
+  ) {
+    throw new Error(
+      "The payment is still pending and the seat cannot be released safely."
+    );
+  }
+
+  if (
+    cancellation.status !==
+    "CANCELLED"
+  ) {
+    throw new Error(
+      "The payment could not be safely cancelled."
+    );
+  }
+}
+
+async function markPendingPaymentCancelled(
+  registration:
+    Registration
+) {
+  if (
+    registration.status !==
+    "pending-payment"
+  ) {
+    return;
+  }
+
+  const token =
+    process.env
+      .SANITY_API_WRITE_TOKEN;
+
+  if (!token) {
+    throw new Error(
+      "Missing SANITY_API_WRITE_TOKEN."
+    );
+  }
+
+  const writeClient =
+    client.withConfig({
+      token,
+
+      useCdn:
+        false,
+    });
+
+  await writeClient
+    .patch(
+      registration._id
+    )
+    .set({
+      paymentStatus:
+        "failed",
+    })
+    .unset([
+      "reservationExpiresAt",
+      "paymentRedirectUrl",
+    ])
+    .commit();
+}
+
+async function promoteAfterSeatFreed(
+  request: Request,
+
+  registration:
+    Registration,
+
+  excludeRegistrationId?:
+    string
+) {
+  if (
+    !registration.eventId ||
+    !registration.event
   ) {
     return [];
   }
 
-  const waitlist =
-    await client.fetch<
-      Registration[]
-    >(
-      `
-        *[
-          _type == "eventRegistration"
-          && event._ref == $eventId
-          && status == "waitlist"
-        ]
-        | order(
-          registeredAt asc
-        ) {
-          ${REGISTRATION_FIELDS}
-        }
-      `,
-      {
-        eventId,
-      }
+  try {
+    return await promoteWaitlist({
+      eventId:
+        registration.eventId,
+
+      event:
+        registration.event,
+
+      siteOrigin:
+        getSiteOrigin(
+          request
+        ),
+
+      excludeRegistrationId,
+    });
+  } catch (error) {
+    /*
+      The admin operation itself
+      should remain valid even if
+      automatic promotion fails.
+    */
+
+    console.error(
+      "Waitlist promotion failed:",
+      error
     );
 
-  const candidates =
-    waitlist
-      .filter(
-        (candidate) =>
-          candidate._id !==
-          excludeRegistrationId
-      )
-      .slice(
-        0,
-        freeSpots
-      );
-
-  const promoted:
-    Registration[] = [];
-
-  for (
-    const candidate
-    of candidates
-  ) {
-    try {
-      await patchStatus(
-        candidate._id,
-        "confirmed"
-      );
-
-      const updated = {
-        ...candidate,
-
-        status:
-          "confirmed" as const,
-      };
-
-      promoted.push(
-        updated
-      );
-
-      try {
-        await sendStatusEmail(
-          updated,
-          "confirmed"
-        );
-      } catch (emailError) {
-        console.error(
-          "Waitlist promotion email failed:",
-          emailError
-        );
-      }
-    } catch (
-      promotionError
-    ) {
-      console.error(
-        "Waitlist promotion failed:",
-        promotionError
-      );
-    }
+    return [];
   }
-
-  return promoted;
 }
 
 export async function POST(
@@ -559,6 +745,22 @@ export async function POST(
         },
         {
           status: 401,
+        }
+      );
+    }
+
+    const sanityToken =
+      process.env
+        .SANITY_API_WRITE_TOKEN;
+
+    if (!sanityToken) {
+      return NextResponse.json(
+        {
+          error:
+            "Server configuration is incomplete.",
+        },
+        {
+          status: 500,
         }
       );
     }
@@ -604,6 +806,31 @@ export async function POST(
       );
     }
 
+    const allowedActions:
+      AdminAction[] = [
+        "confirm",
+        "waitlist",
+        "cancel",
+        "check-in",
+        "undo-check-in",
+      ];
+
+    if (
+      !allowedActions.includes(
+        action
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Unknown management action.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     const registration =
       await getRegistration(
         registrationId
@@ -624,25 +851,130 @@ export async function POST(
     const previousStatus =
       registration.status;
 
+    const eventPrice =
+      getEventPrice(
+        registration.event
+      );
+
+    const writeClient =
+      client.withConfig({
+        token:
+          sanityToken,
+
+        useCdn:
+          false,
+      });
+
     /*
+      ==================================
       CONFIRM
+      ==================================
     */
 
-    if (action === "confirm") {
+    if (
+      action ===
+      "confirm"
+    ) {
+      /*
+        Once online payments are live,
+        an admin must not accidentally
+        bypass payment for a paid event.
+
+        Paid and explicit pay-on-site
+        registrations remain valid.
+      */
+
+      if (
+        eventPrice > 0 &&
+        paymentsEnabled() &&
+        !paymentSatisfied(
+          registration
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "This is a paid event and the registration has not been paid. Complete the payment or mark it as pay-on-site before confirming.",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+
       await checkCapacity(
         registration
       );
 
-      await patchStatus(
-        registration._id,
-        "confirmed"
-      );
+      /*
+        Before Comgate is enabled,
+        confirming a paid registration
+        means payment on site.
+      */
 
-      const updated = {
-        ...registration,
+      if (
+        eventPrice > 0 &&
+        !paymentsEnabled() &&
+        registration
+          .paymentStatus !==
+          "paid"
+      ) {
+        await writeClient
+          .patch(
+            registration._id
+          )
+          .set({
+            status:
+              "confirmed",
 
-        status:
-          "confirmed" as const,
+            paymentStatus:
+              "pay_on_site",
+
+            paymentProvider:
+              "manual",
+
+            paymentAmount:
+              eventPrice,
+
+            paymentCurrency:
+              "CZK",
+          })
+          .unset([
+            "checkedInAt",
+            "reservationExpiresAt",
+            "paymentRedirectUrl",
+          ])
+          .commit();
+      } else {
+        await patchStatus(
+          registration._id,
+
+          "confirmed"
+        );
+      }
+
+      const updated:
+        Registration = {
+          ...registration,
+
+          status:
+            "confirmed",
+
+          ...(
+            eventPrice > 0 &&
+            !paymentsEnabled() &&
+            registration
+              .paymentStatus !==
+              "paid"
+              ? {
+                  paymentStatus:
+                    "pay_on_site",
+
+                  paymentProvider:
+                    "manual",
+                }
+              : {}
+          ),
       };
 
       if (
@@ -652,32 +984,38 @@ export async function POST(
         try {
           await sendStatusEmail(
             updated,
+
             "confirmed"
           );
-        } catch (emailError) {
+        } catch (error) {
           console.error(
             "Confirmation email failed:",
-            emailError
+            error
           );
         }
       }
 
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
         registration:
           updated,
 
-        promoted: [],
+        promoted:
+          [],
       });
     }
 
     /*
+      ==================================
       CHECK IN
+      ==================================
     */
 
     if (
-      action === "check-in"
+      action ===
+      "check-in"
     ) {
       if (
         previousStatus !==
@@ -694,19 +1032,50 @@ export async function POST(
         );
       }
 
+      /*
+        Once online payments are live,
+        also guard the door against an
+        accidentally confirmed but
+        unpaid paid registration.
+      */
+
+      if (
+        eventPrice > 0 &&
+        paymentsEnabled() &&
+        !paymentSatisfied(
+          registration
+        )
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "This attendee has not completed payment.",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+
       await patchStatus(
         registration._id,
+
         "checked-in"
       );
 
       return NextResponse.json({
-        success: true,
-        promoted: [],
+        success:
+          true,
+
+        promoted:
+          [],
       });
     }
 
     /*
+      ==================================
       UNDO CHECK-IN
+      ==================================
     */
 
     if (
@@ -730,38 +1099,78 @@ export async function POST(
 
       await patchStatus(
         registration._id,
+
         "confirmed"
       );
 
       return NextResponse.json({
-        success: true,
-        promoted: [],
+        success:
+          true,
+
+        promoted:
+          [],
       });
     }
 
     /*
+      ==================================
       MOVE TO WAITLIST
+      ==================================
     */
 
     if (
-      action === "waitlist"
+      action ===
+      "waitlist"
     ) {
       const freedSeat =
         previousStatus ===
           "confirmed" ||
         previousStatus ===
-          "checked-in";
+          "checked-in" ||
+        previousStatus ===
+          "pending-payment";
+
+      /*
+        Cancel active Comgate checkout
+        before releasing a temporary
+        reservation.
+      */
+
+      if (
+        previousStatus ===
+        "pending-payment"
+      ) {
+        await cancelPendingPayment(
+          registration
+        );
+
+        await markPendingPaymentCancelled(
+          registration
+        );
+      }
 
       await patchStatus(
         registration._id,
+
         "waitlist"
       );
 
-      const updated = {
-        ...registration,
+      const updated:
+        Registration = {
+          ...registration,
 
-        status:
-          "waitlist" as const,
+          status:
+            "waitlist",
+
+          ...(
+            previousStatus ===
+            "pending-payment"
+              ? {
+                  paymentStatus:
+                    "failed" as const,
+                }
+              : {}
+          ),
       };
 
       try {
@@ -772,36 +1181,38 @@ export async function POST(
 
         await sendStatusEmail(
           updated,
+
           "waitlist",
+
           position
         );
-      } catch (emailError) {
+      } catch (error) {
         console.error(
           "Waitlist email failed:",
-          emailError
+          error
         );
       }
 
       let promoted:
-        Registration[] = [];
+        PromotedRegistration[] =
+        [];
 
       if (
-        freedSeat &&
-        registration.eventId &&
-        registration.event
+        freedSeat
       ) {
         promoted =
-          await promoteWaitlist(
-            registration.eventId,
+          await promoteAfterSeatFreed(
+            request,
 
-            registration.event,
+            registration,
 
             registration._id
           );
       }
 
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
         registration:
           updated,
@@ -811,42 +1222,136 @@ export async function POST(
     }
 
     /*
+      ==================================
       CANCEL
+      ==================================
     */
 
-    if (action === "cancel") {
+    if (
+      action ===
+      "cancel"
+    ) {
+      /*
+        Repeating cancellation is safe.
+      */
+
+      if (
+        previousStatus ===
+        "cancelled"
+      ) {
+        return NextResponse.json({
+          success:
+            true,
+
+          promoted:
+            [],
+        });
+      }
+
       const freedSeat =
         previousStatus ===
           "confirmed" ||
         previousStatus ===
-          "checked-in";
+          "checked-in" ||
+        previousStatus ===
+          "pending-payment";
 
-      await patchStatus(
-        registration._id,
-        "cancelled"
-      );
-
-      let promoted:
-        Registration[] = [];
+      /*
+        A pending external payment
+        must be cancelled before the
+        capacity slot is released.
+      */
 
       if (
-        freedSeat &&
-        registration.eventId &&
-        registration.event
+        previousStatus ===
+        "pending-payment"
+      ) {
+        await cancelPendingPayment(
+          registration
+        );
+      }
+
+      const paymentWasPending =
+        previousStatus ===
+          "pending-payment" &&
+        registration
+          .paymentStatus ===
+          "pending";
+
+      let patch =
+        writeClient
+          .patch(
+            registration._id
+          )
+          .set({
+            status:
+              "cancelled",
+
+            ...(paymentWasPending
+              ? {
+                  paymentStatus:
+                    "failed",
+                }
+              : {}),
+          })
+          .unset([
+            "checkedInAt",
+            "reservationExpiresAt",
+          ]);
+
+      if (
+        paymentWasPending
+      ) {
+        patch =
+          patch.unset([
+            "paymentRedirectUrl",
+          ]);
+      }
+
+      await patch.commit();
+
+      let promoted:
+        PromotedRegistration[] =
+        [];
+
+      if (
+        freedSeat
       ) {
         promoted =
-          await promoteWaitlist(
-            registration.eventId,
+          await promoteAfterSeatFreed(
+            request,
 
-            registration.event
+            registration
           );
       }
 
+      /*
+        Paid cancellation does NOT
+        automatically refund money.
+
+        We return this information so
+        the admin UI can later show a
+        refund warning/action.
+      */
+
+      const refundRequired =
+        registration
+          .paymentStatus ===
+        "paid";
+
       return NextResponse.json({
-        success: true,
+        success:
+          true,
+
         promoted,
+
+        refundRequired,
       });
     }
+
+    /*
+      Defensive fallback.
+    */
 
     return NextResponse.json(
       {
@@ -866,7 +1371,8 @@ export async function POST(
     return NextResponse.json(
       {
         error:
-          error instanceof Error
+          error instanceof
+            Error
             ? error.message
             : "Could not update registration.",
       },

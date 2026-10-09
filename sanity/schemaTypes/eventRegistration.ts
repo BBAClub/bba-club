@@ -39,6 +39,13 @@ export const eventRegistrationType =
           list: [
             {
               title:
+                "Pending payment",
+              value:
+                "pending-payment",
+            },
+
+            {
+              title:
                 "Confirmed",
               value:
                 "confirmed",
@@ -176,6 +183,210 @@ export const eventRegistrationType =
       }),
 
       /*
+        PAYMENT
+      */
+
+      defineField({
+        name:
+          "paymentStatus",
+
+        title:
+          "Payment Status",
+
+        type:
+          "string",
+
+        options: {
+          list: [
+            {
+              title:
+                "Not required",
+              value:
+                "not_required",
+            },
+
+            {
+              title:
+                "Pay on site",
+              value:
+                "pay_on_site",
+            },
+
+            {
+              title:
+                "Pending",
+              value:
+                "pending",
+            },
+
+            {
+              title:
+                "Paid",
+              value:
+                "paid",
+            },
+
+            {
+              title:
+                "Failed",
+              value:
+                "failed",
+            },
+
+            {
+              title:
+                "Refunded",
+              value:
+                "refunded",
+            },
+          ],
+
+          layout:
+            "dropdown",
+        },
+
+        readOnly: true,
+
+        description:
+          "Payment state managed automatically by the website.",
+      }),
+
+      defineField({
+        name:
+          "paymentProvider",
+
+        title:
+          "Payment Provider",
+
+        type:
+          "string",
+
+        readOnly: true,
+
+        description:
+          "Payment provider used for this registration.",
+      }),
+
+      defineField({
+        name:
+          "paymentTransactionId",
+
+        title:
+          "Comgate Transaction ID",
+
+        type:
+          "string",
+
+        readOnly: true,
+
+        description:
+          "Transaction identifier returned by Comgate.",
+      }),
+
+      defineField({
+        name:
+          "paymentRedirectUrl",
+
+        title:
+          "Payment Redirect URL",
+
+        type:
+          "url",
+
+        readOnly: true,
+
+        description:
+          "Checkout URL returned by Comgate.",
+      }),
+
+      defineField({
+        name:
+          "paymentAmount",
+
+        title:
+          "Payment Amount",
+
+        type:
+          "number",
+
+        readOnly: true,
+
+        description:
+          "Amount charged in CZK. Stored as a snapshot of the event price.",
+      }),
+
+      defineField({
+        name:
+          "paymentCurrency",
+
+        title:
+          "Payment Currency",
+
+        type:
+          "string",
+
+        readOnly: true,
+
+        description:
+          "Currency used for the payment.",
+      }),
+
+      defineField({
+        name:
+          "paymentCreatedAt",
+
+        title:
+          "Payment Created At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+      }),
+
+      defineField({
+        name:
+          "reservationExpiresAt",
+
+        title:
+          "Seat Reservation Expires At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Until this time, a pending payment temporarily reserves a seat.",
+      }),
+
+      defineField({
+        name:
+          "paidAt",
+
+        title:
+          "Paid At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+      }),
+
+      defineField({
+        name:
+          "refundedAt",
+
+        title:
+          "Refunded At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+      }),
+
+      /*
         EMAIL INFO
       */
 
@@ -239,6 +450,9 @@ export const eventRegistrationType =
 
         status:
           "status",
+
+        paymentStatus:
+          "paymentStatus",
       },
 
       prepare({
@@ -247,21 +461,43 @@ export const eventRegistrationType =
         email,
         eventTitle,
         status,
+        paymentStatus,
       }) {
         const statusLabel =
           status ===
-          "checked-in"
-            ? "✓ Checked in"
+          "pending-payment"
+            ? "Payment pending"
             : status ===
-                "confirmed"
-              ? "Confirmed"
+                "checked-in"
+              ? "✓ Checked in"
               : status ===
-                  "waitlist"
-                ? "Waitlist"
+                  "confirmed"
+                ? "Confirmed"
                 : status ===
-                    "cancelled"
-                  ? "Cancelled"
-                  : status;
+                    "waitlist"
+                  ? "Waitlist"
+                  : status ===
+                      "cancelled"
+                    ? "Cancelled"
+                    : status;
+
+        const paymentLabel =
+          paymentStatus ===
+          "paid"
+            ? "Paid"
+            : paymentStatus ===
+                "pay_on_site"
+              ? "Pay on site"
+              : paymentStatus ===
+                  "pending"
+                ? "Payment pending"
+                : paymentStatus ===
+                    "failed"
+                  ? "Payment failed"
+                  : paymentStatus ===
+                      "refunded"
+                    ? "Refunded"
+                    : undefined;
 
         return {
           title:
@@ -272,6 +508,7 @@ export const eventRegistrationType =
           subtitle: [
             eventTitle,
             statusLabel,
+            paymentLabel,
             email,
           ]
             .filter(Boolean)

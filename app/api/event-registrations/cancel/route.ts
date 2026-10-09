@@ -3,10 +3,6 @@ import {
 } from "next/server";
 
 import {
-  randomUUID,
-} from "node:crypto";
-
-import {
   client,
 } from "@/sanity/lib/client";
 
@@ -15,38 +11,31 @@ import {
 } from "@/lib/events/cancellationToken";
 
 import {
-  sendEventRegistrationEmail,
-} from "@/lib/email/sendEventRegistrationEmail";
+  cancelComgatePayment,
+} from "@/lib/payments/comgate";
+
+import {
+  promoteWaitlist,
+  type PromotionEvent,
+} from "@/lib/events/promoteWaitlist";
 
 export const runtime =
   "nodejs";
 
 type RegistrationStatus =
+  | "pending-payment"
   | "confirmed"
   | "waitlist"
   | "cancelled"
   | "checked-in";
 
-type EventInfo = {
-  _id: string;
-
-  title?: string;
-
-  date?: string;
-  time?: string;
-
-  venue?: string;
-  location?: string;
-  address?: string;
-
-  capacity?: number;
-
-  registrationStatus?:
-    | "coming-soon"
-    | "open"
-    | "closed"
-    | "full";
-};
+type PaymentStatus =
+  | "not_required"
+  | "pay_on_site"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
 type Registration = {
   _id: string;
@@ -62,9 +51,18 @@ type Registration = {
 
   registeredAt?: string;
 
+  paymentStatus?:
+    PaymentStatus;
+
+  paymentProvider?: string;
+
+  paymentTransactionId?: string;
+
+  reservationExpiresAt?: string;
+
   eventId?: string;
 
-  event?: EventInfo;
+  event?: PromotionEvent;
 };
 
 type CancelRequestBody = {
@@ -84,12 +82,20 @@ const REGISTRATION_FIELDS = `
   ticketCode,
   registeredAt,
 
+  paymentStatus,
+  paymentProvider,
+  paymentTransactionId,
+  reservationExpiresAt,
+
   "eventId": event._ref,
 
   "event": event->{
     _id,
 
     title,
+
+    "slug":
+      slug.current,
 
     date,
     time,
@@ -99,6 +105,8 @@ const REGISTRATION_FIELDS = `
     address,
 
     capacity,
+    price,
+
     registrationStatus
   }
 `;
@@ -112,6 +120,27 @@ function getString(
     : "";
 }
 
+function getSiteOrigin(
+  request: Request
+) {
+  const configured =
+    process.env
+      .NEXT_PUBLIC_SITE_URL
+      ?.trim()
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  if (configured) {
+    return configured;
+  }
+
+  return new URL(
+    request.url
+  ).origin;
+}
+
 async function getRegistration(
   registrationId: string
 ) {
@@ -120,8 +149,11 @@ async function getRegistration(
   >(
     `
       *[
-        _type == "eventRegistration"
-        && _id == $registrationId
+        _type ==
+          "eventRegistration"
+
+        && _id ==
+          $registrationId
       ][0] {
         ${REGISTRATION_FIELDS}
       }
@@ -170,334 +202,13 @@ function publicRegistration(
   };
 }
 
-async function ensureTicketCode(
-  registration:
-    Registration
-) {
-  if (
-    registration.ticketCode
-  ) {
-    return registration
-      .ticketCode;
-  }
-
-  const sanityToken =
-    process.env
-      .SANITY_API_WRITE_TOKEN;
-
-  if (!sanityToken) {
-    throw new Error(
-      "Missing SANITY_API_WRITE_TOKEN."
-    );
-  }
-
-  const ticketCode =
-    randomUUID();
-
-  const writeClient =
-    client.withConfig({
-      token:
-        sanityToken,
-
-      useCdn:
-        false,
-    });
-
-  await writeClient
-    .patch(
-      registration._id
-    )
-    .set({
-      ticketCode,
-    })
-    .commit();
-
-  return ticketCode;
-}
-
-async function promoteWaitlist(
-  eventId: string,
-  event: EventInfo
-) {
-  const sanityToken =
-    process.env
-      .SANITY_API_WRITE_TOKEN;
-
-  if (!sanityToken) {
-    throw new Error(
-      "Missing SANITY_API_WRITE_TOKEN."
-    );
-  }
-
-  /*
-    No fixed capacity means
-    there is nothing to promote
-    based on available spots.
-  */
-
-  if (
-    typeof event.capacity !==
-      "number" ||
-    event.capacity <= 0
-  ) {
-    return [];
-  }
-
-  /*
-    If registrations have been
-    explicitly closed, do not
-    automatically promote people.
-  */
-
-  if (
-    event.registrationStatus ===
-    "closed"
-  ) {
-    return [];
-  }
-
-  const occupied =
-    await client.fetch<
-      number
-    >(
-      `
-        count(
-          *[
-            _type == "eventRegistration"
-            && event._ref == $eventId
-            && status in [
-              "confirmed",
-              "checked-in"
-            ]
-          ]
-        )
-      `,
-      {
-        eventId,
-      }
-    );
-
-  const availableSpots =
-    Math.max(
-      event.capacity -
-        occupied,
-      0
-    );
-
-  if (
-    availableSpots <= 0
-  ) {
-    return [];
-  }
-
-  /*
-    Oldest waitlist registration
-    gets priority.
-  */
-
-  const candidates =
-    await client.fetch<
-      Registration[]
-    >(
-      `
-        *[
-          _type == "eventRegistration"
-          && event._ref == $eventId
-          && status == "waitlist"
-        ]
-        | order(
-          registeredAt asc
-        )
-        [0...$limit] {
-          _id,
-
-          firstName,
-          lastName,
-          email,
-
-          status,
-
-          ticketCode,
-          registeredAt,
-
-          "eventId": event._ref
-        }
-      `,
-      {
-        eventId,
-
-        limit:
-          availableSpots,
-      }
-    );
-
-  if (
-    candidates.length === 0
-  ) {
-    return [];
-  }
-
-  const writeClient =
-    client.withConfig({
-      token:
-        sanityToken,
-
-      useCdn:
-        false,
-    });
-
-  const promoted:
-    Registration[] =
-    [];
-
-  for (
-    const candidate
-    of candidates
-  ) {
-    try {
-      const ticketCode =
-        await ensureTicketCode(
-          candidate
-        );
-
-      await writeClient
-        .patch(
-          candidate._id
-        )
-        .set({
-          status:
-            "confirmed",
-        })
-        .unset([
-          "checkedInAt",
-        ])
-        .commit();
-
-      const updated = {
-        ...candidate,
-
-        status:
-          "confirmed" as const,
-
-        ticketCode,
-
-        event,
-        eventId,
-      };
-
-      promoted.push(
-        updated
-      );
-
-      /*
-        Promotion itself must not
-        fail just because email
-        delivery fails.
-      */
-
-      try {
-        if (
-          updated.email &&
-          updated.firstName &&
-          event.title
-        ) {
-          const emailResult =
-            await sendEventRegistrationEmail(
-              {
-                registrationId:
-                  updated._id,
-
-                ticketCode,
-
-                status:
-                  "confirmed",
-
-                firstName:
-                  updated.firstName,
-
-                email:
-                  updated.email,
-
-                eventTitle:
-                  event.title,
-
-                date:
-                  event.date,
-
-                time:
-                  event.time,
-
-                venue:
-                  event.venue,
-
-                location:
-                  event.location,
-
-                address:
-                  event.address,
-              }
-            );
-
-          if (
-            emailResult.sent
-          ) {
-            const emailPatch:
-              Record<
-                string,
-                string
-              > = {
-                confirmationEmailSentAt:
-                  new Date()
-                    .toISOString(),
-              };
-
-            if (
-              emailResult.emailId
-            ) {
-              emailPatch.confirmationEmailId =
-                emailResult.emailId;
-            }
-
-            await writeClient
-              .patch(
-                updated._id
-              )
-              .set(
-                emailPatch
-              )
-              .commit();
-          }
-        }
-      } catch (
-        emailError
-      ) {
-        console.error(
-          "Promoted attendee email failed:",
-          emailError
-        );
-      }
-    } catch (
-      promotionError
-    ) {
-      console.error(
-        "Waitlist promotion failed:",
-        promotionError
-      );
-    }
-  }
-
-  return promoted;
-}
-
 /*
-  GET only verifies the link.
+  GET only verifies the
+  cancellation link.
 
-  This is intentional:
-  email providers sometimes
-  automatically open links.
-
-  We do not want that to cancel
-  somebody's registration.
+  Email scanners sometimes open
+  links automatically, so GET must
+  never change registration state.
 */
 
 export async function GET(
@@ -580,7 +291,8 @@ export async function GET(
     }
 
     return NextResponse.json({
-      success: true,
+      success:
+        true,
 
       registration:
         publicRegistration(
@@ -716,9 +428,7 @@ export async function POST(
     }
 
     /*
-      Already cancelled is not an
-      error. This makes the action
-      safely repeatable.
+      Repeat cancellation safely.
     */
 
     if (
@@ -726,7 +436,8 @@ export async function POST(
       "cancelled"
     ) {
       return NextResponse.json({
-        success: true,
+        success:
+          true,
 
         alreadyCancelled:
           true,
@@ -737,9 +448,8 @@ export async function POST(
     }
 
     /*
-      Somebody already inside
-      the event should not be
-      able to cancel afterwards.
+      Checked-in attendees can no
+      longer cancel themselves.
     */
 
     if (
@@ -760,6 +470,129 @@ export async function POST(
     const previousStatus =
       registration.status;
 
+    /*
+      ==================================
+      ACTIVE COMGATE PAYMENT
+      ==================================
+
+      If a temporarily reserved seat
+      is released, cancel the external
+      payment BEFORE releasing the
+      seat locally.
+
+      Otherwise the attendee could
+      still pay using an old checkout
+      URL after we had offered the
+      place to somebody else.
+    */
+
+    if (
+      previousStatus ===
+        "pending-payment" &&
+      registration
+        .paymentProvider ===
+        "comgate" &&
+      registration
+        .paymentTransactionId
+    ) {
+      try {
+        const cancellation =
+          await cancelComgatePayment(
+            registration
+              .paymentTransactionId
+          );
+
+        /*
+          Race condition:
+
+          The attendee may have
+          completed payment just
+          before pressing Cancel.
+        */
+
+        if (
+          cancellation.status ===
+            "PAID" ||
+          cancellation.status ===
+            "AUTHORIZED"
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "The payment has already been completed or authorized. Your registration cannot be cancelled as an unpaid reservation.",
+
+              code:
+                "PAYMENT_ALREADY_COMPLETED",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+
+        /*
+          If Comgate still considers
+          the transaction PENDING,
+          we do not release the seat.
+        */
+
+        if (
+          cancellation.status ===
+          "PENDING"
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "The payment is still being processed. Please try again shortly.",
+
+              code:
+                "PAYMENT_STILL_PENDING",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+
+        if (
+          cancellation.status !==
+          "CANCELLED"
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "The payment could not be safely cancelled.",
+            },
+            {
+              status: 409,
+            }
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Comgate cancellation failed:",
+          error
+        );
+
+        /*
+          Do not release the local
+          seat if we cannot establish
+          what happened to the
+          external payment.
+        */
+
+        return NextResponse.json(
+          {
+            error:
+              "We could not cancel the pending payment. Please try again shortly.",
+          },
+          {
+            status: 503,
+          }
+        );
+      }
+    }
+
     const writeClient =
       client.withConfig({
         token:
@@ -769,47 +602,122 @@ export async function POST(
           false,
       });
 
-    await writeClient
-      .patch(
-        registration._id
-      )
-      .set({
-        status:
-          "cancelled",
-      })
-      .unset([
-        "checkedInAt",
-      ])
-      .commit();
-
     /*
-      Only a confirmed person
-      frees an occupied place.
+      A confirmed registration or an
+      active payment reservation frees
+      a capacity slot.
 
-      Cancelling a waitlist entry
-      does not create a new spot.
+      Cancelling an ordinary waitlist
+      entry does not.
     */
 
-    let promoted:
-      Registration[] =
+    const freedSeat =
+      previousStatus ===
+        "confirmed" ||
+      previousStatus ===
+        "pending-payment";
+
+    /*
+      Preserve "paid" for already-paid
+      tickets.
+
+      Automatic refunds are NOT being
+      performed here.
+
+      For cancelled pending payments,
+      mark the failed/cancelled payment
+      attempt accordingly.
+    */
+
+    const paymentWasPending =
+      previousStatus ===
+        "pending-payment" &&
+      registration
+        .paymentStatus ===
+        "pending";
+
+    let patch =
+      writeClient
+        .patch(
+          registration._id
+        )
+        .set({
+          status:
+            "cancelled",
+
+          ...(paymentWasPending
+            ? {
+                paymentStatus:
+                  "failed",
+              }
+            : {}),
+        })
+        .unset([
+          "checkedInAt",
+          "reservationExpiresAt",
+        ]);
+
+    if (
+      paymentWasPending
+    ) {
+      patch =
+        patch.unset([
+          "paymentRedirectUrl",
+        ]);
+    }
+
+    await patch.commit();
+
+    /*
+      If a seat was freed, offer it
+      to the oldest waitlist entry.
+
+      Free / legacy pay-on-site:
+      → confirmed immediately.
+
+      New paid registration:
+      → pending-payment + Comgate.
+    */
+
+    let promoted =
       [];
 
     if (
-      previousStatus ===
-        "confirmed" &&
+      freedSeat &&
       registration.eventId &&
       registration.event
     ) {
-      promoted =
-        await promoteWaitlist(
-          registration.eventId,
+      try {
+        promoted =
+          await promoteWaitlist({
+            eventId:
+              registration.eventId,
 
-          registration.event
+            event:
+              registration.event,
+
+            siteOrigin:
+              getSiteOrigin(
+                request
+              ),
+          });
+      } catch (error) {
+        /*
+          Cancellation itself is still
+          valid even if automatic
+          waitlist promotion fails.
+        */
+
+        console.error(
+          "Waitlist promotion after cancellation failed:",
+          error
         );
+      }
     }
 
     return NextResponse.json({
-      success: true,
+      success:
+        true,
 
       alreadyCancelled:
         false,

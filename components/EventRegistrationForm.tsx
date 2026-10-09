@@ -25,7 +25,7 @@ type RegistrationResult = {
 
   eventTitle: string;
 
-  ticketCode: string;
+  ticketCode?: string;
 
   waitlistPosition?: number;
 };
@@ -33,7 +33,10 @@ type RegistrationResult = {
 type RegistrationApiResponse = {
   success?: boolean;
 
+  paymentRequired?: boolean;
+
   status?:
+    | "pending-payment"
     | "confirmed"
     | "waitlist";
 
@@ -42,6 +45,12 @@ type RegistrationApiResponse = {
   ticketCode?: string;
 
   waitlistPosition?: number;
+
+  paymentUrl?: string;
+
+  reservationExpiresAt?: string;
+
+  code?: string;
 
   error?: string;
 };
@@ -86,8 +95,8 @@ export default function EventRegistrationForm({
       new FormData(form);
 
     /*
-      Data z formuláře převedeme
-      na normální JSON.
+      Convert form data into
+      normal JSON.
     */
 
     const website =
@@ -168,12 +177,12 @@ export default function EventRegistrationForm({
         );
 
       /*
-        Nejdřív čteme text.
+        Read the raw response first.
 
-        Pokud by server znovu
-        vrátil něco jiného než JSON,
-        dostaneme srozumitelnější
-        chybu.
+        If the server accidentally
+        returns something other than
+        JSON, we can show a useful
+        error instead of crashing.
       */
 
       const responseText =
@@ -209,13 +218,81 @@ export default function EventRegistrationForm({
         );
       }
 
+      /*
+        ==================================
+        PAID EVENT
+        ==================================
+
+        Registration is NOT complete
+        yet.
+
+        The API created a temporary
+        seat reservation and a
+        Comgate checkout.
+
+        Redirect to the exact URL
+        returned by the server.
+      */
+
+      if (
+        data.paymentRequired
+      ) {
+        if (
+          !data.paymentUrl
+        ) {
+          throw new Error(
+            "The payment server returned an incomplete response."
+          );
+        }
+
+        window.location.assign(
+          data.paymentUrl
+        );
+
+        return;
+      }
+
+      /*
+        ==================================
+        FREE / WAITLIST RESULT
+        ==================================
+      */
+
       if (
         !data.status ||
-        !data.eventTitle ||
-        !data.ticketCode
+        !data.eventTitle
       ) {
         throw new Error(
           "The registration server returned incomplete data."
+        );
+      }
+
+      if (
+        data.status !==
+          "confirmed" &&
+        data.status !==
+          "waitlist"
+      ) {
+        throw new Error(
+          "The registration server returned an unexpected registration status."
+        );
+      }
+
+      /*
+        A confirmed attendee must
+        already have a ticket code.
+
+        Waitlist registrations do
+        not need one in the response.
+      */
+
+      if (
+        data.status ===
+          "confirmed" &&
+        !data.ticketCode
+      ) {
+        throw new Error(
+          "The registration server did not return a ticket."
         );
       }
 
@@ -359,29 +436,30 @@ export default function EventRegistrationForm({
             </div>
           )}
 
-        {confirmed && (
-          <div className="mt-5 rounded-xl border border-white/10 bg-[#071422]/50 p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71869A]">
-              Ticket code
-            </p>
+        {confirmed &&
+          result.ticketCode && (
+            <div className="mt-5 rounded-xl border border-white/10 bg-[#071422]/50 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71869A]">
+                Ticket code
+              </p>
 
-            <p className="mt-2 break-all font-mono text-sm text-[#A9B5C3]">
-              {
-                result.ticketCode
-              }
-            </p>
+              <p className="mt-2 break-all font-mono text-sm text-[#A9B5C3]">
+                {
+                  result.ticketCode
+                }
+              </p>
 
-            <p className="mt-2 text-xs leading-5 text-[#53687D]">
-              You do not
-              need to do
-              anything with
-              this code yet.
-              It will later
-              be used for
-              your QR ticket.
-            </p>
-          </div>
-        )}
+              <p className="mt-2 text-xs leading-5 text-[#53687D]">
+                You do not
+                need to do
+                anything with
+                this code yet.
+                It will later
+                be used for
+                your QR ticket.
+              </p>
+            </div>
+          )}
 
         <button
           type="button"
@@ -546,7 +624,7 @@ export default function EventRegistrationForm({
           className="w-full rounded-xl bg-[#0057FF] px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-[#2874FF] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {submitting
-            ? "Registering..."
+            ? "Processing..."
             : registrationStatus ===
                 "full"
               ? "Join the waitlist"

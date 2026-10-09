@@ -1,12 +1,20 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+
+import {
+  notFound,
+} from "next/navigation";
 
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import EventRegistrationForm from "@/components/EventRegistrationForm";
 
-import { client } from "@/sanity/lib/client";
-import { EVENT_BY_SLUG_QUERY } from "@/sanity/lib/queries";
+import {
+  client,
+} from "@/sanity/lib/client";
+
+import {
+  EVENT_BY_SLUG_QUERY,
+} from "@/sanity/lib/queries";
 
 import type {
   Event,
@@ -17,6 +25,16 @@ import type {
 type EventDetailPageProps = {
   params: Promise<{
     slug: string;
+  }>;
+
+  searchParams: Promise<{
+    payment?:
+      | string
+      | string[];
+
+    registration?:
+      | string
+      | string[];
   }>;
 };
 
@@ -30,6 +48,7 @@ type SanityPortableBlock = {
 
 type SanityGalleryImage = {
   url?: string;
+
   alt?: string;
 };
 
@@ -37,6 +56,7 @@ type SanityEvent = {
   _id: string;
 
   title?: string;
+
   slug?: string;
 
   label?: string;
@@ -46,10 +66,13 @@ type SanityEvent = {
     | "past";
 
   date?: string;
+
   time?: string;
 
   location?: string;
+
   venue?: string;
+
   address?: string;
 
   description?: string;
@@ -59,7 +82,8 @@ type SanityEvent = {
 
   capacity?: number;
 
-  confirmedRegistrations?: number;
+  confirmedRegistrations?:
+    number;
 
   highlights?: string[];
 
@@ -71,17 +95,57 @@ type SanityEvent = {
 
   registrationUrl?: string;
 
-  registrationDeadline?: string;
+  registrationDeadline?:
+    string;
 
   registrationNote?: string;
 
   price?: number;
 
   coverImageUrl?: string;
+
   coverImageAlt?: string;
 
-  gallery?: SanityGalleryImage[];
+  gallery?:
+    SanityGalleryImage[];
 };
+
+type PaymentRegistration = {
+  _id: string;
+
+  status?:
+    | "pending-payment"
+    | "confirmed"
+    | "waitlist"
+    | "cancelled"
+    | "checked-in";
+
+  paymentStatus?:
+    | "not_required"
+    | "pay_on_site"
+    | "pending"
+    | "paid"
+    | "failed"
+    | "refunded";
+
+  paymentProvider?:
+    string;
+
+  paymentRedirectUrl?:
+    string;
+
+  reservationExpiresAt?:
+    string;
+
+  confirmationEmailSentAt?:
+    string;
+};
+
+type PaymentNoticeState =
+  | "paid"
+  | "pending"
+  | "cancelled"
+  | "unknown";
 
 const monthNames = [
   "JAN",
@@ -134,12 +198,15 @@ function portableTextToParagraphs(
       (
         paragraph
       ): paragraph is string =>
-        Boolean(paragraph)
+        Boolean(
+          paragraph
+        )
     );
 }
 
 function convertGallery(
-  gallery?: SanityGalleryImage[]
+  gallery?:
+    SanityGalleryImage[]
 ): EventGalleryImage[] {
   if (!gallery) {
     return [];
@@ -151,16 +218,25 @@ function convertGallery(
         image
       ): image is SanityGalleryImage & {
         url: string;
-      } => Boolean(image.url)
+      } =>
+        Boolean(
+          image.url
+        )
     )
-    .map((image) => ({
-      url: image.url,
-      alt: image.alt,
-    }));
+    .map(
+      (image) => ({
+        url:
+          image.url,
+
+        alt:
+          image.alt,
+      })
+    );
 }
 
 function convertSanityEvent(
-  sanityEvent: SanityEvent
+  sanityEvent:
+    SanityEvent
 ): Event | null {
   if (
     !sanityEvent.title ||
@@ -173,15 +249,22 @@ function convertSanityEvent(
     return null;
   }
 
-  const [, month, day] =
-    sanityEvent.date.split("-");
+  const [
+    ,
+    month,
+    day,
+  ] =
+    sanityEvent.date.split(
+      "-"
+    );
 
   const monthIndex =
     Number(month) - 1;
 
   const fullDescription =
     portableTextToParagraphs(
-      sanityEvent.fullDescription
+      sanityEvent
+        .fullDescription
     );
 
   return {
@@ -189,7 +272,9 @@ function convertSanityEvent(
       sanityEvent.slug,
 
     date:
-      String(Number(day)),
+      String(
+        Number(day)
+      ),
 
     month:
       monthNames[
@@ -200,13 +285,16 @@ function convertSanityEvent(
       sanityEvent.title,
 
     description:
-      sanityEvent.description,
+      sanityEvent
+        .description,
 
     fullDescription:
-      fullDescription.length > 0
+      fullDescription.length >
+      0
         ? fullDescription
         : [
-            sanityEvent.description,
+            sanityEvent
+              .description,
           ],
 
     location:
@@ -239,16 +327,19 @@ function convertSanityEvent(
       sanityEvent.capacity,
 
     highlights:
-      sanityEvent.highlights,
+      sanityEvent
+        .highlights,
 
     price:
       sanityEvent.price,
 
     coverImageUrl:
-      sanityEvent.coverImageUrl,
+      sanityEvent
+        .coverImageUrl,
 
     coverImageAlt:
-      sanityEvent.coverImageAlt,
+      sanityEvent
+        .coverImageAlt,
 
     gallery:
       convertGallery(
@@ -277,7 +368,8 @@ function convertSanityEvent(
 }
 
 function getRegistrationInfo(
-  status: RegistrationStatus
+  status:
+    RegistrationStatus
 ) {
   switch (status) {
     case "open":
@@ -326,7 +418,9 @@ function formatDeadline(
   }
 
   const parsed =
-    new Date(deadline);
+    new Date(
+      deadline
+    );
 
   if (
     Number.isNaN(
@@ -339,36 +433,325 @@ function formatDeadline(
   return new Intl.DateTimeFormat(
     "en-GB",
     {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      day:
+        "numeric",
+
+      month:
+        "long",
+
+      year:
+        "numeric",
+
+      hour:
+        "2-digit",
+
+      minute:
+        "2-digit",
     }
-  ).format(parsed);
+  ).format(
+    parsed
+  );
 }
 
 function formatPrice(
   price?: number
 ) {
   if (
-    typeof price !== "number"
+    typeof price !==
+    "number"
   ) {
     return "To be confirmed";
   }
 
-  if (price === 0) {
+  if (
+    price === 0
+  ) {
     return "Free";
   }
 
   return `${price} CZK`;
 }
 
+function getFirstSearchParam(
+  value:
+    | string
+    | string[]
+    | undefined
+) {
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    return value[0];
+  }
+
+  return value;
+}
+
+function isPaymentReturnValue(
+  value?: string
+): value is
+  | "paid"
+  | "pending"
+  | "cancelled" {
+  return (
+    value === "paid" ||
+    value === "pending" ||
+    value ===
+      "cancelled"
+  );
+}
+
+function getPaymentNoticeState(
+  registration:
+    PaymentRegistration | null
+): PaymentNoticeState {
+  if (!registration) {
+    return "unknown";
+  }
+
+  if (
+    registration
+      .paymentProvider !==
+    "comgate"
+  ) {
+    return "unknown";
+  }
+
+  if (
+    registration
+      .paymentStatus ===
+      "paid" &&
+    (
+      registration.status ===
+        "confirmed" ||
+      registration.status ===
+        "checked-in"
+    )
+  ) {
+    return "paid";
+  }
+
+  if (
+    registration.status ===
+      "cancelled" ||
+    registration
+      .paymentStatus ===
+      "failed"
+  ) {
+    return "cancelled";
+  }
+
+  if (
+    registration.status ===
+      "pending-payment" ||
+    registration
+      .paymentStatus ===
+      "pending"
+  ) {
+    return "pending";
+  }
+
+  return "unknown";
+}
+
+function PaymentReturnNotice({
+  state,
+  emailSent,
+  paymentUrl,
+  reservationExpiresAt,
+  refreshHref,
+}: {
+  state:
+    PaymentNoticeState;
+
+  emailSent:
+    boolean;
+
+  paymentUrl?:
+    string;
+
+  reservationExpiresAt?:
+    string;
+
+  refreshHref:
+    string;
+}) {
+  const reservationStillActive =
+    reservationExpiresAt
+      ? (
+          new Date(
+            reservationExpiresAt
+          ).getTime() >
+          Date.now()
+        )
+      : false;
+
+  if (
+    state ===
+    "paid"
+  ) {
+    return (
+      <section className="border-b border-white/10 bg-[#091725] px-6 py-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-[20px] border border-[#0057FF]/35 bg-[#0D2035] p-5 md:p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8EC5FF]">
+              Payment confirmed
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold md:text-2xl">
+              Your place is confirmed.
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#A9B5C3]">
+              {emailSent
+                ? "Your payment was successful and your ticket has been sent to your email."
+                : "Your payment was successful and your registration is confirmed. Your ticket email is being prepared."}
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (
+    state ===
+    "cancelled"
+  ) {
+    return (
+      <section className="border-b border-white/10 bg-[#091725] px-6 py-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-[20px] border border-red-400/25 bg-red-400/10 p-5 md:p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-200">
+              Payment cancelled
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold md:text-2xl">
+              The payment was not completed.
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#A9B5C3]">
+              No paid ticket was issued. If places are still available, you can submit the registration form again.
+            </p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (
+    state ===
+    "pending"
+  ) {
+    return (
+      <section className="border-b border-white/10 bg-[#091725] px-6 py-6 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-[20px] border border-[#F0B44D]/30 bg-[#F0B44D]/10 p-5 md:p-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#FFD58A]">
+              Payment processing
+            </p>
+
+            <h2 className="mt-2 text-xl font-semibold md:text-2xl">
+              We are confirming your payment.
+            </h2>
+
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#C6B58D]">
+              Do not submit another registration yet. Payment confirmation can take a short moment.
+            </p>
+
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                href={
+                  refreshHref
+                }
+                className="rounded-xl bg-[#0057FF] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2874FF]"
+              >
+                Refresh payment status
+              </Link>
+
+              {paymentUrl &&
+                reservationStillActive && (
+                  <a
+                    href={
+                      paymentUrl
+                    }
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-[#F6F8FB] transition hover:bg-white/10"
+                  >
+                    Return to payment
+                  </a>
+                )}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="border-b border-white/10 bg-[#091725] px-6 py-6 lg:px-10">
+      <div className="mx-auto max-w-7xl">
+        <div className="rounded-[20px] border border-white/10 bg-[#0D1D2C] p-5 md:p-6">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8EA0B3]">
+            Payment status
+          </p>
+
+          <h2 className="mt-2 text-xl font-semibold md:text-2xl">
+            We could not confirm the payment status yet.
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#8EA0B3]">
+            Do not start a second payment yet. Refresh the status in a moment or check your email for the ticket confirmation.
+          </p>
+
+          <Link
+            href={
+              refreshHref
+            }
+            className="mt-5 inline-block rounded-xl bg-[#0057FF] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#2874FF]"
+          >
+            Refresh payment status
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default async function EventDetailPage({
   params,
+  searchParams,
 }: EventDetailPageProps) {
-  const { slug } =
-    await params;
+  const [
+    resolvedParams,
+    resolvedSearchParams,
+  ] =
+    await Promise.all([
+      params,
+      searchParams,
+    ]);
+
+  const {
+    slug,
+  } =
+    resolvedParams;
+
+  const paymentReturnHint =
+    getFirstSearchParam(
+      resolvedSearchParams
+        .payment
+    );
+
+  const paymentRegistrationId =
+    getFirstSearchParam(
+      resolvedSearchParams
+        .registration
+    );
+
+  const showPaymentNotice =
+    isPaymentReturnValue(
+      paymentReturnHint
+    );
 
   const sanityEvent =
     await client.fetch<
@@ -393,17 +776,128 @@ export default async function EventDetailPage({
     notFound();
   }
 
-  /*
-    LIVE CAPACITY
+  const nowIso =
+    new Date()
+      .toISOString();
 
-    confirmed + checked-in
-    registrations zabírají místo.
+  /*
+    Active payment reservations
+    temporarily occupy capacity.
+
+    This keeps the public "spots left"
+    count consistent with the payment
+    API and prevents overselling.
   */
+
+  const activePaymentReservationsPromise =
+    client.fetch<number>(
+      `
+        count(
+          *[
+            _type ==
+              "eventRegistration"
+
+            && event._ref ==
+              $eventId
+
+            && status ==
+              "pending-payment"
+
+            && paymentStatus ==
+              "pending"
+
+            && defined(
+              reservationExpiresAt
+            )
+
+            && reservationExpiresAt >
+              $now
+          ]
+        )
+      `,
+      {
+        eventId:
+          sanityEvent._id,
+
+        now:
+          nowIso,
+      }
+    );
+
+  /*
+    The query parameters from Comgate
+    are NOT trusted as proof of payment.
+
+    If this is a payment return, read
+    the real registration state from
+    Sanity and require it to belong to
+    this exact event.
+  */
+
+  const paymentRegistrationPromise:
+    Promise<
+      PaymentRegistration | null
+    > =
+    showPaymentNotice &&
+    paymentRegistrationId
+      ? client.fetch<
+          PaymentRegistration | null
+        >(
+          `
+            *[
+              _type ==
+                "eventRegistration"
+
+              && _id ==
+                $registrationId
+
+              && event._ref ==
+                $eventId
+
+              && paymentProvider ==
+                "comgate"
+            ][0] {
+              _id,
+
+              status,
+              paymentStatus,
+              paymentProvider,
+
+              paymentRedirectUrl,
+              reservationExpiresAt,
+
+              confirmationEmailSentAt
+            }
+          `,
+          {
+            registrationId:
+              paymentRegistrationId,
+
+            eventId:
+              sanityEvent._id,
+          }
+        )
+      : Promise.resolve(
+          null
+        );
+
+  const [
+    activePaymentReservations,
+    paymentRegistration,
+  ] =
+    await Promise.all([
+      activePaymentReservationsPromise,
+      paymentRegistrationPromise,
+    ]);
 
   const confirmedRegistrations =
     sanityEvent
       .confirmedRegistrations ??
     0;
+
+  const occupiedRegistrations =
+    confirmedRegistrations +
+    activePaymentReservations;
 
   const remainingSpots =
     typeof event.capacity ===
@@ -411,18 +905,10 @@ export default async function EventDetailPage({
     event.capacity > 0
       ? Math.max(
           event.capacity -
-            confirmedRegistrations,
+            occupiedRegistrations,
           0
         )
       : undefined;
-
-  /*
-    Pokud je event v CMS stále
-    označen jako "open", ale podle
-    reálných registrací už nemá
-    volné místo, přepneme UI
-    automaticky do waitlist režimu.
-  */
 
   const effectiveRegistrationStatus:
     RegistrationStatus =
@@ -444,6 +930,25 @@ export default async function EventDetailPage({
       event.registration
         .deadline
     );
+
+  const paymentNoticeState =
+    getPaymentNoticeState(
+      paymentRegistration
+    );
+
+  const refreshHref =
+    showPaymentNotice &&
+    paymentRegistrationId
+      ? `/events/${encodeURIComponent(
+          slug
+        )}?payment=${encodeURIComponent(
+          paymentReturnHint
+        )}&registration=${encodeURIComponent(
+          paymentRegistrationId
+        )}`
+      : `/events/${encodeURIComponent(
+          slug
+        )}`;
 
   return (
     <main className="min-h-screen bg-[#071422] text-[#F6F8FB]">
@@ -480,7 +985,9 @@ export default async function EventDetailPage({
               </div>
 
               <h1 className="mt-5 max-w-4xl text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-5xl md:text-7xl">
-                {event.title}
+                {
+                  event.title
+                }
               </h1>
 
               <p className="mt-6 max-w-2xl text-base leading-7 text-[#A9B5C3] md:text-lg md:leading-8">
@@ -497,9 +1004,12 @@ export default async function EventDetailPage({
               style={
                 event.coverImageUrl
                   ? {
-                      backgroundImage: `url("${event.coverImageUrl}")`,
+                      backgroundImage:
+                        `url("${event.coverImageUrl}")`,
+
                       backgroundPosition:
                         "center",
+
                       backgroundSize:
                         "cover",
                     }
@@ -520,6 +1030,7 @@ export default async function EventDetailPage({
               {event.coverImageUrl ? (
                 <>
                   <div className="absolute inset-0 bg-black/35" />
+
                   <div className="absolute inset-0 bg-gradient-to-t from-[#071422]/90 via-[#071422]/30 to-transparent" />
                 </>
               ) : (
@@ -565,6 +1076,33 @@ export default async function EventDetailPage({
           </div>
         </div>
       </section>
+
+      {/* PAYMENT RETURN */}
+
+      {showPaymentNotice && (
+        <PaymentReturnNotice
+          state={
+            paymentNoticeState
+          }
+          emailSent={
+            Boolean(
+              paymentRegistration
+                ?.confirmationEmailSentAt
+            )
+          }
+          paymentUrl={
+            paymentRegistration
+              ?.paymentRedirectUrl
+          }
+          reservationExpiresAt={
+            paymentRegistration
+              ?.reservationExpiresAt
+          }
+          refreshHref={
+            refreshHref
+          }
+        />
+      )}
 
       {/* MAIN CONTENT */}
 
@@ -613,7 +1151,9 @@ export default async function EventDetailPage({
                 </p>
 
                 <p className="mt-2 font-semibold">
-                  {event.venue}
+                  {
+                    event.venue
+                  }
                 </p>
 
                 {event.address && (
@@ -631,7 +1171,9 @@ export default async function EventDetailPage({
                 </p>
 
                 <p className="mt-2 font-semibold">
-                  {event.time}
+                  {
+                    event.time
+                  }
                 </p>
 
                 <p className="mt-1 text-sm text-[#71869A]">
@@ -782,7 +1324,8 @@ export default async function EventDetailPage({
                         <div
                           key={`${image.url}-${index}`}
                           className={`overflow-hidden rounded-[20px] border border-white/10 bg-[#0B1A29] ${
-                            index === 0 &&
+                            index ===
+                              0 &&
                             event
                               .gallery!
                               .length %
@@ -793,6 +1336,7 @@ export default async function EventDetailPage({
                           }`}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
+
                           <img
                             src={
                               image.url

@@ -14,14 +14,28 @@ import {
   sendEventRegistrationEmail,
 } from "@/lib/email/sendEventRegistrationEmail";
 
+import {
+  createComgatePayment,
+  getComgatePaymentStatus,
+} from "@/lib/payments/comgate";
+
 export const runtime =
   "nodejs";
 
 type RegistrationStatus =
+  | "pending-payment"
   | "confirmed"
   | "waitlist"
   | "cancelled"
   | "checked-in";
+
+type PaymentStatus =
+  | "not_required"
+  | "pay_on_site"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
 type EventDocument = {
   _id: string;
@@ -38,27 +52,35 @@ type EventDocument = {
 
   capacity?: number;
 
+  price?: number;
+
   registrationStatus?:
     | "coming-soon"
     | "open"
     | "closed"
     | "full";
 
-  registrationDeadline?:
-    string;
+  registrationDeadline?: string;
 };
 
 type ExistingRegistration = {
   _id: string;
 
-  status?:
-    RegistrationStatus;
+  status?: RegistrationStatus;
+
+  paymentStatus?: PaymentStatus;
 
   registeredAt?: string;
 
   ticketCode?: string;
 
   email?: string;
+
+  paymentTransactionId?: string;
+
+  paymentRedirectUrl?: string;
+
+  reservationExpiresAt?: string;
 };
 
 type RegistrationBody = {
@@ -71,10 +93,34 @@ type RegistrationBody = {
   university?: unknown;
   note?: unknown;
 
-  /*
-    Honeypot field.
-  */
   website?: unknown;
+};
+
+type RegistrationFields = {
+  status: RegistrationStatus;
+
+  registeredAt: string;
+
+  firstName: string;
+  lastName: string;
+  email: string;
+
+  ticketCode?: string;
+
+  university?: string;
+  note?: string;
+
+  paymentStatus?: PaymentStatus;
+
+  paymentProvider?: string;
+
+  paymentAmount?: number;
+
+  paymentCurrency?: string;
+
+  paymentCreatedAt?: string;
+
+  reservationExpiresAt?: string;
 };
 
 function getString(
@@ -106,6 +152,54 @@ function createPrivateRegistrationId() {
   return `private.event-registration-${randomUUID()}`;
 }
 
+function paymentsEnabled() {
+  return (
+    process.env
+      .COMGATE_PAYMENTS_ENABLED ===
+    "true"
+  );
+}
+
+function getSiteOrigin(
+  request: Request
+) {
+  const configured =
+    process.env
+      .NEXT_PUBLIC_SITE_URL
+      ?.trim()
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  if (configured) {
+    return configured;
+  }
+
+  return new URL(
+    request.url
+  ).origin;
+}
+
+function validFutureDate(
+  value?: string
+) {
+  if (!value) {
+    return false;
+  }
+
+  const parsed =
+    new Date(value);
+
+  return (
+    !Number.isNaN(
+      parsed.getTime()
+    ) &&
+    parsed.getTime() >
+      Date.now()
+  );
+}
+
 export async function POST(
   request: Request
 ) {
@@ -125,6 +219,15 @@ export async function POST(
         }
       );
     }
+
+    const writeClient =
+      client.withConfig({
+        token:
+          writeToken,
+
+        useCdn:
+          false,
+      });
 
     /*
       PARSE REQUEST
@@ -261,6 +364,9 @@ export async function POST(
 
     /*
       LOAD EVENT
+
+      Price is loaded only from
+      Sanity.
     */
 
     const event =
@@ -287,6 +393,7 @@ export async function POST(
             address,
 
             capacity,
+            price,
 
             registrationStatus,
             registrationDeadline
@@ -392,16 +499,31 @@ export async function POST(
     }
 
     /*
-      DUPLICATE CHECK
+      PRICE
 
-      Because our server has a
-      Sanity read token, this query
-      sees both old public
-      registrations and new private
-      registrations.
+      Missing / zero / negative
+      price is treated as free.
     */
 
-    const existing =
+    const price =
+      typeof event.price ===
+        "number" &&
+      Number.isFinite(
+        event.price
+      ) &&
+      event.price > 0
+        ? event.price
+        : 0;
+
+    const onlinePaymentRequired =
+      paymentsEnabled() &&
+      price > 0;
+
+    /*
+      DUPLICATE CHECK
+    */
+
+    let existing =
       await client.fetch<
         ExistingRegistration | null
       >(
@@ -421,10 +543,17 @@ export async function POST(
           )
           [0] {
             _id,
+
             status,
+            paymentStatus,
+
             registeredAt,
             ticketCode,
-            email
+            email,
+
+            paymentTransactionId,
+            paymentRedirectUrl,
+            reservationExpiresAt
           }
         `,
         {
@@ -436,7 +565,181 @@ export async function POST(
       );
 
     /*
-      Existing active registration.
+      EXISTING PAYMENT SESSION
+    */
+
+    if (
+      existing?.status ===
+        "pending-payment"
+    ) {
+      if (
+        validFutureDate(
+          existing
+            .reservationExpiresAt
+        ) &&
+        existing
+          .paymentRedirectUrl
+      ) {
+        return NextResponse.json(
+          {
+            success:
+              true,
+
+            paymentRequired:
+              true,
+
+            status:
+              "pending-payment",
+
+            eventTitle:
+              event.title,
+
+            paymentUrl:
+              existing
+                .paymentRedirectUrl,
+          },
+          {
+            status: 200,
+          }
+        );
+      }
+
+      /*
+        Reservation expired.
+
+        Verify the old Comgate
+        transaction before creating
+        another one.
+      */
+
+      if (
+        existing
+          .paymentTransactionId
+      ) {
+        try {
+          const previousPayment =
+            await getComgatePaymentStatus(
+              existing
+                .paymentTransactionId
+            );
+
+          if (
+            previousPayment.status ===
+              "PAID" ||
+            previousPayment.status ===
+              "AUTHORIZED"
+          ) {
+            return NextResponse.json(
+              {
+                error:
+                  "Your payment has already been received and is being processed.",
+
+                code:
+                  "PAYMENT_PROCESSING",
+              },
+              {
+                status: 409,
+              }
+            );
+          }
+
+          if (
+            previousPayment.status ===
+            "PENDING"
+          ) {
+            return NextResponse.json(
+              {
+                error:
+                  "Your previous payment is still being processed. Please try again shortly.",
+
+                code:
+                  "PAYMENT_PENDING",
+              },
+              {
+                status: 409,
+              }
+            );
+          }
+
+          if (
+            previousPayment.status ===
+            "CANCELLED"
+          ) {
+            await writeClient
+              .patch(
+                existing._id
+              )
+              .set({
+                status:
+                  "cancelled",
+
+                paymentStatus:
+                  "failed",
+              })
+              .unset([
+                "reservationExpiresAt",
+              ])
+              .commit();
+
+            existing = {
+              ...existing,
+
+              status:
+                "cancelled",
+
+              paymentStatus:
+                "failed",
+            };
+          }
+        } catch (
+          paymentCheckError
+        ) {
+          console.error(
+            "Previous Comgate payment verification failed:",
+            paymentCheckError
+          );
+
+          return NextResponse.json(
+            {
+              error:
+                "We could not verify your previous payment. Please try again shortly.",
+            },
+            {
+              status: 503,
+            }
+          );
+        }
+      } else {
+        await writeClient
+          .patch(
+            existing._id
+          )
+          .set({
+            status:
+              "cancelled",
+
+            paymentStatus:
+              "failed",
+          })
+          .unset([
+            "reservationExpiresAt",
+          ])
+          .commit();
+
+        existing = {
+          ...existing,
+
+          status:
+            "cancelled",
+
+          paymentStatus:
+            "failed",
+        };
+      }
+    }
+
+    /*
+      EXISTING ACTIVE REGISTRATION
     */
 
     if (
@@ -464,9 +767,15 @@ export async function POST(
     /*
       COUNT OCCUPIED SPOTS
 
-      Checked-in attendees still
-      occupy capacity.
+      Occupied:
+      - confirmed
+      - checked-in
+      - active pending payment
     */
+
+    const nowIso =
+      new Date()
+        .toISOString();
 
     const occupied =
       await client.fetch<number>(
@@ -479,157 +788,216 @@ export async function POST(
               && event._ref ==
                 $eventId
 
-              && status in [
-                "confirmed",
-                "checked-in"
-              ]
+              && (
+                status in [
+                  "confirmed",
+                  "checked-in"
+                ]
+
+                ||
+
+                (
+                  status ==
+                    "pending-payment"
+
+                  && paymentStatus ==
+                    "pending"
+
+                  && defined(
+                    reservationExpiresAt
+                  )
+
+                  && reservationExpiresAt >
+                    $now
+                )
+              )
             ]
           )
         `,
         {
           eventId:
             event._id,
+
+          now:
+            nowIso,
         }
       );
 
     /*
-      DETERMINE STATUS
+      IS EVENT FULL?
     */
 
-    let status:
-      "confirmed"
-      | "waitlist" =
-      "confirmed";
-
-    if (
+    const eventIsFull =
       event.registrationStatus ===
-      "full"
-    ) {
-      status =
-        "waitlist";
-    } else if (
-      typeof event.capacity ===
-        "number" &&
-      event.capacity > 0 &&
-      occupied >=
-        event.capacity
-    ) {
-      status =
-        "waitlist";
-    }
+        "full" ||
+      (
+        typeof event.capacity ===
+          "number" &&
+        event.capacity > 0 &&
+        occupied >=
+          event.capacity
+      );
 
     const registeredAt =
       new Date()
         .toISOString();
 
     /*
-      Generate a NEW ticket when
-      somebody registers again
-      after cancellation.
-
-      Therefore the previous QR
-      becomes invalid.
-    */
-
-    const ticketCode =
-      randomUUID();
-
-    const writeClient =
-      client.withConfig({
-        token:
-          writeToken,
-
-        useCdn:
-          false,
-      });
-
-    /*
-      DOCUMENT ID
-
-      Any ID containing "." is a
-      private Sanity document.
-
-      UUID contains no email,
-      name or other personal data.
+      PRIVATE DOCUMENT ID
     */
 
     let registrationId =
       createPrivateRegistrationId();
 
-    /*
-      If an already-private
-      registration was cancelled,
-      reactivate the same document.
-
-      If the cancelled document is
-      one of our OLD public
-      registrations, delete it and
-      recreate it privately.
-    */
-
     if (
       existing &&
       existing.status ===
-        "cancelled"
+        "cancelled" &&
+      existing._id.includes(
+        "."
+      )
     ) {
-      const existingIsPrivate =
-        existing._id.includes(
-          "."
+      registrationId =
+        existing._id;
+    }
+
+    /*
+      ==================================
+      FULL EVENT → WAITLIST
+      ==================================
+    */
+
+    if (eventIsFull) {
+      const ticketCode =
+        randomUUID();
+
+      const waitlistFields:
+        RegistrationFields = {
+          status:
+            "waitlist",
+
+          registeredAt,
+
+          firstName,
+          lastName,
+          email,
+
+          ticketCode,
+
+          ...(price > 0
+            ? {
+                paymentAmount:
+                  price,
+
+                paymentCurrency:
+                  "CZK",
+              }
+            : {}),
+
+          paymentStatus:
+            price > 0
+              ? (
+                  paymentsEnabled()
+                    ? undefined
+                    : "pay_on_site"
+                )
+              : "not_required",
+
+          paymentProvider:
+            price > 0 &&
+            !paymentsEnabled()
+              ? "manual"
+              : undefined,
+
+          ...(university
+            ? {
+                university,
+              }
+            : {}),
+
+          ...(note
+            ? {
+                note,
+              }
+            : {}),
+        };
+
+      const unsetFields = [
+        "checkedInAt",
+
+        "confirmationEmailSentAt",
+        "confirmationEmailId",
+
+        "paymentTransactionId",
+        "paymentRedirectUrl",
+        "paymentCreatedAt",
+        "reservationExpiresAt",
+
+        "paidAt",
+        "refundedAt",
+      ];
+
+      if (!university) {
+        unsetFields.push(
+          "university"
         );
+      }
+
+      if (!note) {
+        unsetFields.push(
+          "note"
+        );
+      }
 
       if (
-        existingIsPrivate
+        existing &&
+        existing.status ===
+          "cancelled"
       ) {
-        registrationId =
-          existing._id;
-
-        await writeClient
-          .patch(
-            registrationId
+        if (
+          existing._id.includes(
+            "."
           )
-          .set({
-            status,
+        ) {
+          await writeClient
+            .patch(
+              registrationId
+            )
+            .set(
+              waitlistFields
+            )
+            .unset(
+              unsetFields
+            )
+            .commit();
+        } else {
+          await writeClient
+            .delete(
+              existing._id
+            );
 
-            registeredAt,
+          registrationId =
+            createPrivateRegistrationId();
 
-            firstName,
-            lastName,
-            email,
+          await writeClient.create({
+            _id:
+              registrationId,
 
-            ticketCode,
+            _type:
+              "eventRegistration",
 
-            ...(university
-              ? {
-                  university,
-                }
-              : {}),
+            event: {
+              _type:
+                "reference",
 
-            ...(note
-              ? {
-                  note,
-                }
-              : {}),
-          })
-          .unset([
-            "checkedInAt",
-            "confirmationEmailSentAt",
-            "confirmationEmailId",
-          ])
-          .commit();
+              _ref:
+                event._id,
+            },
+
+            ...waitlistFields,
+          });
+        }
       } else {
-        /*
-          Old public cancelled
-          registration.
-
-          Remove it and replace it
-          with a private document.
-        */
-
-        await writeClient
-          .delete(
-            existing._id
-          );
-
         await writeClient.create({
           _id:
             registrationId,
@@ -645,87 +1013,15 @@ export async function POST(
               event._id,
           },
 
-          status,
-
-          registeredAt,
-
-          firstName,
-          lastName,
-          email,
-
-          ticketCode,
-
-          ...(university
-            ? {
-                university,
-              }
-            : {}),
-
-          ...(note
-            ? {
-                note,
-              }
-            : {}),
+          ...waitlistFields,
         });
       }
-    } else {
+
       /*
-        Completely new
-        registration.
+        WAITLIST POSITION
       */
 
-      await writeClient.create({
-        _id:
-          registrationId,
-
-        _type:
-          "eventRegistration",
-
-        event: {
-          _type:
-            "reference",
-
-          _ref:
-            event._id,
-        },
-
-        status,
-
-        registeredAt,
-
-        firstName,
-        lastName,
-        email,
-
-        ticketCode,
-
-        ...(university
-          ? {
-              university,
-            }
-          : {}),
-
-        ...(note
-          ? {
-              note,
-            }
-          : {}),
-      });
-    }
-
-    /*
-      WAITLIST POSITION
-    */
-
-    let waitlistPosition:
-      | number
-      | undefined;
-
-    if (
-      status ===
-      "waitlist"
-    ) {
-      waitlistPosition =
+      const waitlistPosition =
         await client.fetch<number>(
           `
             count(
@@ -751,13 +1047,577 @@ export async function POST(
             registeredAt,
           }
         );
+
+      /*
+        WAITLIST EMAIL
+      */
+
+      let emailSent =
+        false;
+
+      try {
+        const emailResult =
+          await sendEventRegistrationEmail(
+            {
+              registrationId,
+
+              ticketCode,
+
+              status:
+                "waitlist",
+
+              firstName,
+
+              email,
+
+              eventTitle:
+                event.title,
+
+              date:
+                event.date,
+
+              time:
+                event.time,
+
+              venue:
+                event.venue,
+
+              location:
+                event.location,
+
+              address:
+                event.address,
+
+              waitlistPosition,
+            }
+          );
+
+        if (
+          emailResult.sent
+        ) {
+          emailSent =
+            true;
+
+          const emailPatch:
+            Record<
+              string,
+              string
+            > = {
+              confirmationEmailSentAt:
+                new Date()
+                  .toISOString(),
+            };
+
+          if (
+            emailResult.emailId
+          ) {
+            emailPatch.confirmationEmailId =
+              emailResult.emailId;
+          }
+
+          await writeClient
+            .patch(
+              registrationId
+            )
+            .set(
+              emailPatch
+            )
+            .commit();
+        }
+      } catch (
+        emailError
+      ) {
+        console.error(
+          "Waitlist email failed:",
+          emailError
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success:
+            true,
+
+          paymentRequired:
+            false,
+
+          status:
+            "waitlist",
+
+          eventTitle:
+            event.title,
+
+          waitlistPosition,
+
+          emailSent,
+        },
+        {
+          status:
+            201,
+        }
+      );
+    }
+
+    /*
+      ==================================
+      PAID EVENT → COMGATE
+      ==================================
+    */
+
+    if (
+      onlinePaymentRequired
+    ) {
+      const paymentCreatedAt =
+        new Date();
+
+      const reservationExpiresAt =
+        new Date(
+          paymentCreatedAt.getTime() +
+            30 * 60 * 1000
+        ).toISOString();
+
+      const paymentFields:
+        RegistrationFields = {
+          status:
+            "pending-payment",
+
+          registeredAt,
+
+          firstName,
+          lastName,
+          email,
+
+          paymentStatus:
+            "pending",
+
+          paymentProvider:
+            "comgate",
+
+          paymentAmount:
+            price,
+
+          paymentCurrency:
+            "CZK",
+
+          paymentCreatedAt:
+            paymentCreatedAt
+              .toISOString(),
+
+          reservationExpiresAt,
+
+          ...(university
+            ? {
+                university,
+              }
+            : {}),
+
+          ...(note
+            ? {
+                note,
+              }
+            : {}),
+        };
+
+      const unsetFields = [
+        "ticketCode",
+
+        "checkedInAt",
+
+        "confirmationEmailSentAt",
+        "confirmationEmailId",
+
+        "paymentTransactionId",
+        "paymentRedirectUrl",
+
+        "paidAt",
+        "refundedAt",
+      ];
+
+      if (!university) {
+        unsetFields.push(
+          "university"
+        );
+      }
+
+      if (!note) {
+        unsetFields.push(
+          "note"
+        );
+      }
+
+      if (
+        existing &&
+        existing.status ===
+          "cancelled"
+      ) {
+        if (
+          existing._id.includes(
+            "."
+          )
+        ) {
+          await writeClient
+            .patch(
+              registrationId
+            )
+            .set(
+              paymentFields
+            )
+            .unset(
+              unsetFields
+            )
+            .commit();
+        } else {
+          await writeClient
+            .delete(
+              existing._id
+            );
+
+          registrationId =
+            createPrivateRegistrationId();
+
+          await writeClient.create({
+            _id:
+              registrationId,
+
+            _type:
+              "eventRegistration",
+
+            event: {
+              _type:
+                "reference",
+
+              _ref:
+                event._id,
+            },
+
+            ...paymentFields,
+          });
+        }
+      } else {
+        await writeClient.create({
+          _id:
+            registrationId,
+
+          _type:
+            "eventRegistration",
+
+          event: {
+            _type:
+              "reference",
+
+            _ref:
+              event._id,
+          },
+
+          ...paymentFields,
+        });
+      }
+
+      /*
+        CREATE COMGATE PAYMENT
+      */
+
+      const paymentRefId =
+        registrationId.replace(
+          /^private\.event-registration-/,
+          ""
+        );
+
+      const origin =
+        getSiteOrigin(
+          request
+        );
+
+      const encodedRegistrationId =
+        encodeURIComponent(
+          registrationId
+        );
+
+      const encodedEventSlug =
+        encodeURIComponent(
+          eventSlug
+        );
+
+      const paidUrl =
+        `${origin}/events/${encodedEventSlug}` +
+        `?payment=paid` +
+        `&registration=${encodedRegistrationId}`;
+
+      const cancelledUrl =
+        `${origin}/events/${encodedEventSlug}` +
+        `?payment=cancelled` +
+        `&registration=${encodedRegistrationId}`;
+
+      const pendingUrl =
+        `${origin}/events/${encodedEventSlug}` +
+        `?payment=pending` +
+        `&registration=${encodedRegistrationId}`;
+
+      try {
+        const payment =
+          await createComgatePayment(
+            {
+              amountCzk:
+                price,
+
+              refId:
+                paymentRefId,
+
+              email,
+
+              fullName:
+                `${firstName} ${lastName}`.trim(),
+
+              eventTitle:
+                event.title,
+
+              paidUrl,
+
+              cancelledUrl,
+
+              pendingUrl,
+            }
+          );
+
+        await writeClient
+          .patch(
+            registrationId
+          )
+          .set({
+            paymentTransactionId:
+              payment.transId,
+
+            paymentRedirectUrl:
+              payment.redirectUrl,
+          })
+          .commit();
+
+        return NextResponse.json(
+          {
+            success:
+              true,
+
+            paymentRequired:
+              true,
+
+            status:
+              "pending-payment",
+
+            eventTitle:
+              event.title,
+
+            paymentUrl:
+              payment.redirectUrl,
+
+            reservationExpiresAt,
+          },
+          {
+            status:
+              201,
+          }
+        );
+      } catch (
+        paymentError
+      ) {
+        try {
+          await writeClient
+            .patch(
+              registrationId
+            )
+            .set({
+              status:
+                "cancelled",
+
+              paymentStatus:
+                "failed",
+            })
+            .unset([
+              "reservationExpiresAt",
+              "paymentRedirectUrl",
+            ])
+            .commit();
+        } catch (
+          rollbackError
+        ) {
+          console.error(
+            "Failed to release reservation after Comgate error:",
+            rollbackError
+          );
+        }
+
+        console.error(
+          "Comgate payment creation failed:",
+          paymentError
+        );
+
+        return NextResponse.json(
+          {
+            error:
+              "We could not start the payment. Please try again.",
+          },
+          {
+            status:
+              502,
+          }
+        );
+      }
+    }
+
+    /*
+      ==================================
+      FREE / PAY-ON-SITE FLOW
+      ==================================
+    */
+
+    const ticketCode =
+      randomUUID();
+
+    const registrationFields:
+      RegistrationFields = {
+        status:
+          "confirmed",
+
+        registeredAt,
+
+        firstName,
+        lastName,
+        email,
+
+        ticketCode,
+
+        paymentStatus:
+          price > 0
+            ? "pay_on_site"
+            : "not_required",
+
+        paymentProvider:
+          price > 0
+            ? "manual"
+            : undefined,
+
+        paymentAmount:
+          price > 0
+            ? price
+            : undefined,
+
+        paymentCurrency:
+          price > 0
+            ? "CZK"
+            : undefined,
+
+        ...(university
+          ? {
+              university,
+            }
+          : {}),
+
+        ...(note
+          ? {
+              note,
+            }
+          : {}),
+      };
+
+    const unsetFields = [
+      "checkedInAt",
+
+      "confirmationEmailSentAt",
+      "confirmationEmailId",
+
+      "paymentTransactionId",
+      "paymentRedirectUrl",
+      "paymentCreatedAt",
+      "reservationExpiresAt",
+
+      "paidAt",
+      "refundedAt",
+    ];
+
+    if (!university) {
+      unsetFields.push(
+        "university"
+      );
+    }
+
+    if (!note) {
+      unsetFields.push(
+        "note"
+      );
+    }
+
+    if (
+      existing &&
+      existing.status ===
+        "cancelled"
+    ) {
+      const existingIsPrivate =
+        existing._id.includes(
+          "."
+        );
+
+      if (
+        existingIsPrivate
+      ) {
+        await writeClient
+          .patch(
+            registrationId
+          )
+          .set(
+            registrationFields
+          )
+          .unset(
+            unsetFields
+          )
+          .commit();
+      } else {
+        await writeClient
+          .delete(
+            existing._id
+          );
+
+        registrationId =
+          createPrivateRegistrationId();
+
+        await writeClient.create({
+          _id:
+            registrationId,
+
+          _type:
+            "eventRegistration",
+
+          event: {
+            _type:
+              "reference",
+
+            _ref:
+              event._id,
+          },
+
+          ...registrationFields,
+        });
+      }
+    } else {
+      await writeClient.create({
+        _id:
+          registrationId,
+
+        _type:
+          "eventRegistration",
+
+        event: {
+          _type:
+            "reference",
+
+          _ref:
+            event._id,
+        },
+
+        ...registrationFields,
+      });
     }
 
     /*
       CONFIRMATION EMAIL
-
-      Registration remains valid
-      even if email sending fails.
     */
 
     let emailSent =
@@ -771,7 +1631,8 @@ export async function POST(
 
             ticketCode,
 
-            status,
+            status:
+              "confirmed",
 
             firstName,
 
@@ -794,8 +1655,6 @@ export async function POST(
 
             address:
               event.address,
-
-            waitlistPosition,
           }
         );
 
@@ -840,27 +1699,21 @@ export async function POST(
       );
     }
 
-    /*
-      RESPONSE
-    */
-
     return NextResponse.json(
       {
         success:
           true,
 
-        status,
+        paymentRequired:
+          false,
+
+        status:
+          "confirmed",
 
         eventTitle:
           event.title,
 
-        ticketCode:
-          status ===
-          "confirmed"
-            ? ticketCode
-            : undefined,
-
-        waitlistPosition,
+        ticketCode,
 
         emailSent,
       },
