@@ -5,7 +5,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-white/10 bg-[#050E17] px-6 py-12 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-12 md:grid-cols-[1.5fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
           {/* BRAND */}
           <div>
             <Logo />
@@ -14,6 +14,13 @@ export default function Footer() {
               Events, Prague, study resources and a community
               that makes student life better.
             </p>
+
+            <div className="mt-6 space-y-1 text-xs leading-5 text-[#53687D]">
+              <p>BBA Club, z.s.</p>
+              <p>IČO: 29854059</p>
+              <p>Opatovická 159/17</p>
+              <p>110 00 Praha 1</p>
+            </div>
           </div>
 
           {/* NAVIGATION */}
@@ -56,10 +63,17 @@ export default function Footer() {
           {/* CONTACT */}
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#71869A]">
-              BBA Club
+              Contact
             </p>
 
             <div className="mt-5 flex flex-col gap-3 text-sm text-[#A9B5C3]">
+              <a
+                href="mailto:bba.club@vse.cz"
+                className="transition hover:text-white"
+              >
+                bba.club@vse.cz
+              </a>
+
               <a
                 href="https://instagram.com/bbaclubvse"
                 target="_blank"
@@ -68,13 +82,6 @@ export default function Footer() {
               >
                 Instagram
               </a>
-
-              <Link
-                href="/about"
-                className="transition hover:text-white"
-              >
-                Contact
-              </Link>
 
               <a
                 href="https://www.vse.cz/"
@@ -86,11 +93,41 @@ export default function Footer() {
               </a>
             </div>
           </div>
+
+          {/* LEGAL */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#71869A]">
+              Legal
+            </p>
+
+            <div className="mt-5 flex flex-col gap-3 text-sm text-[#A9B5C3]">
+              <Link
+                href="/terms"
+                className="transition hover:text-white"
+              >
+                Terms & Conditions
+              </Link>
+
+              <Link
+                href="/privacy"
+                className="transition hover:text-white"
+              >
+                Privacy Policy
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* BOTTOM */}
-        <div className="mt-12 flex flex-col justify-between gap-4 border-t border-white/10 pt-7 text-xs text-[#53687D] md:flex-row">
-          <p>© 2026 BBA Club</p>
+        <div className="mt-12 flex flex-col justify-between gap-4 border-t border-white/10 pt-7 text-xs text-[#53687D] md:flex-row md:items-center">
+          <div className="space-y-1">
+            <p>© 2026 BBA Club, z.s.</p>
+
+            <p>
+              Registered under file no. L 82337 at the Municipal Court
+              in Prague.
+            </p>
+          </div>
 
           <p>Made by students, for students.</p>
         </div>
