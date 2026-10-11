@@ -563,16 +563,42 @@ export default function PrivacyPage() {
 
           <Section number="14" title="Photography and event media">
             <p>
-              Some events may involve photography or video recording.
-              Where this is relevant, BBA Club may provide additional
-              information at the event or in the event description,
-              depending on how the material will be used.
+              Photos and video recordings may be taken during BBA Club events
+              to document the event and the activities of BBA Club.
             </p>
 
             <p>
-              This Privacy Policy does not automatically give BBA Club
-              permission to use an identifiable person&apos;s image for
-              every possible purpose.
+              Selected photos or recordings may be published on the BBA Club
+              website, social media channels or other BBA Club communication
+              materials and may also be used to promote BBA Club and future
+              events.
+            </p>
+
+            <p>
+              When creating and using event photography, BBA Club will respect
+              the privacy and personality rights of participants and will use
+              such material in a reasonable manner appropriate to the nature of
+              the event.
+            </p>
+
+            <p>
+              Where a participant is the main identifiable subject of a photo
+              or recording intended for specific promotional use, BBA Club may
+              request additional permission where appropriate.
+            </p>
+
+            <p>
+              If you do not wish to be photographed, please let the organiser or
+              photographer know at the event. If you have a concern about a
+              photo or recording already published by BBA Club, you can contact
+              us at{" "}
+              <a
+                href="mailto:bba.club@vse.cz"
+                className="text-[#5790FF] transition hover:text-[#8EC5FF]"
+              >
+                bba.club@vse.cz
+              </a>
+              .
             </p>
           </Section>
 
