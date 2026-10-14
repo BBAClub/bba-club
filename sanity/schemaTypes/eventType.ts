@@ -181,16 +181,46 @@ export const eventType = defineType({
 
     defineField({
       name: "price",
-      title: "Ticket Price (CZK)",
+      title: "Ticket Price",
       type: "number",
       description:
-        "Price per person in CZK. Enter 0 for a free event.",
+        "Price per person. Enter 0 for a free event.",
       initialValue: 0,
       validation: (rule) =>
         rule
           .required()
-          .min(0)
-          .integer(),
+          .min(0),
+    }),
+
+    defineField({
+      name: "currency",
+      title: "Currency",
+      type: "string",
+      initialValue: "CZK",
+      options: {
+        list: [
+          {
+            title: "CZK",
+            value: "CZK",
+          },
+          {
+            title: "EUR",
+            value: "EUR",
+          },
+        ],
+        layout: "radio",
+      },
+      validation: (rule) =>
+        rule.required(),
+    }),
+
+    defineField({
+      name: "onlinePaymentsEnabled",
+      title: "Online Payments Enabled",
+      type: "boolean",
+      description:
+        "When enabled, this event can use the online payment gateway. The global payment switch must also be enabled.",
+      initialValue: false,
     }),
 
     defineField({
@@ -263,6 +293,7 @@ export const eventType = defineType({
       date: "date",
       status: "status",
       price: "price",
+      currency: "currency",
       media: "coverImage",
     },
 
@@ -271,13 +302,19 @@ export const eventType = defineType({
       date,
       status,
       price,
+      currency,
       media,
     }) {
+      const resolvedCurrency =
+        currency === "EUR"
+          ? "EUR"
+          : "CZK";
+
       const formattedPrice =
         price === 0
           ? "Free"
           : typeof price === "number"
-            ? `${price} CZK`
+            ? `${price} ${resolvedCurrency}`
             : undefined;
 
       return {
