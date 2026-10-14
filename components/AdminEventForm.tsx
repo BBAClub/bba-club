@@ -26,10 +26,63 @@ type RegistrationStatus =
   | "closed"
   | "full";
 
+type ExistingImage = {
+  assetId: string;
+  url: string;
+  alt?: string;
+};
+
+export type AdminEventFormData = {
+  title?: string;
+  slug?: string;
+
+  label?: string;
+  status?: EventStatus;
+
+  date?: string;
+  time?: string;
+
+  location?: string;
+  venue?: string;
+  address?: string;
+
+  description?: string;
+  fullDescription?: string;
+
+  coverImage?: ExistingImage | null;
+
+  gallery?: ExistingImage[];
+
+  capacity?: number;
+  price?: number;
+  currency?: Currency;
+
+  onlinePaymentsEnabled?: boolean;
+
+  highlights?: string[];
+
+  registrationStatus?: RegistrationStatus;
+
+  registrationUrl?: string;
+  registrationDeadline?: string;
+  registrationNote?: string;
+};
+
+type AdminEventFormProps = {
+  mode?: "create" | "edit";
+  currentSlug?: string;
+  initialData?: AdminEventFormData;
+};
+
 type GalleryImageDraft = {
   id: string;
-  file: File;
+
+  assetId?: string;
+  file?: File;
+
   previewUrl: string;
+  objectUrl: boolean;
+
   alt: string;
 };
 
@@ -46,77 +99,165 @@ const ALLOWED_IMAGE_TYPES =
     "image/webp",
   ]);
 
-export default function AdminEventForm() {
+const inputClass =
+  "mt-2 w-full rounded-xl border border-white/10 bg-[#071422] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#53687D] focus:border-[#0057FF]";
+
+function toLocalDateTime(
+  value?: string
+) {
+  if (!value) {
+    return "";
+  }
+
+  const date =
+    new Date(value);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return "";
+  }
+
+  const pad = (
+    number: number
+  ) =>
+    String(number).padStart(
+      2,
+      "0"
+    );
+
+  return [
+    date.getFullYear(),
+    "-",
+    pad(
+      date.getMonth() + 1
+    ),
+    "-",
+    pad(
+      date.getDate()
+    ),
+    "T",
+    pad(
+      date.getHours()
+    ),
+    ":",
+    pad(
+      date.getMinutes()
+    ),
+  ].join("");
+}
+
+export default function AdminEventForm({
+  mode = "create",
+  currentSlug,
+  initialData,
+}: AdminEventFormProps) {
   const router =
     useRouter();
+
+  const editing =
+    mode === "edit";
 
   const [
     title,
     setTitle,
   ] =
-    useState("");
+    useState(
+      initialData?.title ??
+        ""
+    );
 
   const [
     slug,
     setSlug,
   ] =
-    useState("");
+    useState(
+      initialData?.slug ??
+        ""
+    );
 
   const [
     label,
     setLabel,
   ] =
-    useState("");
+    useState(
+      initialData?.label ??
+        ""
+    );
 
   const [
     status,
     setStatus,
   ] =
     useState<EventStatus>(
-      "upcoming"
+      initialData?.status ??
+        "upcoming"
     );
 
   const [
     date,
     setDate,
   ] =
-    useState("");
+    useState(
+      initialData?.date ??
+        ""
+    );
 
   const [
     time,
     setTime,
   ] =
-    useState("");
+    useState(
+      initialData?.time ??
+        ""
+    );
 
   const [
     location,
     setLocation,
   ] =
-    useState("");
+    useState(
+      initialData?.location ??
+        ""
+    );
 
   const [
     venue,
     setVenue,
   ] =
-    useState("");
+    useState(
+      initialData?.venue ??
+        ""
+    );
 
   const [
     address,
     setAddress,
   ] =
-    useState("");
+    useState(
+      initialData?.address ??
+        ""
+    );
 
   const [
     description,
     setDescription,
   ] =
-    useState("");
+    useState(
+      initialData?.description ??
+        ""
+    );
 
   const [
     fullDescription,
     setFullDescription,
   ] =
-    useState("");
+    useState(
+      initialData?.fullDescription ??
+        ""
+    );
 
   /*
     COVER IMAGE
@@ -126,23 +267,50 @@ export default function AdminEventForm() {
     coverImage,
     setCoverImage,
   ] =
-    useState<
-      File | null
-    >(null);
+    useState<File | null>(
+      null
+    );
+
+  const [
+    coverImageAssetId,
+    setCoverImageAssetId,
+  ] =
+    useState(
+      initialData
+        ?.coverImage
+        ?.assetId ??
+        ""
+    );
+
+  const [
+    existingCoverUrl,
+    setExistingCoverUrl,
+  ] =
+    useState(
+      initialData
+        ?.coverImage
+        ?.url ??
+        ""
+    );
 
   const [
     coverImagePreview,
     setCoverImagePreview,
   ] =
-    useState<
-      string | null
-    >(null);
+    useState<string | null>(
+      null
+    );
 
   const [
     coverImageAlt,
     setCoverImageAlt,
   ] =
-    useState("");
+    useState(
+      initialData
+        ?.coverImage
+        ?.alt ??
+        ""
+    );
 
   const [
     draggingCover,
@@ -154,18 +322,49 @@ export default function AdminEventForm() {
     GALLERY
   */
 
+  const initialGallery =
+    (
+      initialData?.gallery ??
+      []
+    ).map(
+      (
+        image,
+        index
+      ): GalleryImageDraft => ({
+        id:
+          `existing-${image.assetId}-${index}`,
+
+        assetId:
+          image.assetId,
+
+        previewUrl:
+          image.url,
+
+        objectUrl:
+          false,
+
+        alt:
+          image.alt ??
+          "",
+      })
+    );
+
   const [
     galleryImages,
     setGalleryImages,
   ] =
     useState<
       GalleryImageDraft[]
-    >([]);
+    >(
+      initialGallery
+    );
 
   const galleryImagesRef =
     useRef<
       GalleryImageDraft[]
-    >([]);
+    >(
+      initialGallery
+    );
 
   const [
     draggingGallery,
@@ -174,66 +373,115 @@ export default function AdminEventForm() {
     useState(false);
 
   /*
-    OTHER FIELDS
+    TICKETS
   */
 
   const [
     capacity,
     setCapacity,
   ] =
-    useState("");
+    useState(
+      typeof initialData
+        ?.capacity ===
+        "number"
+        ? String(
+            initialData.capacity
+          )
+        : ""
+    );
 
   const [
     price,
     setPrice,
   ] =
-    useState("0");
+    useState(
+      typeof initialData
+        ?.price ===
+        "number"
+        ? String(
+            initialData.price
+          )
+        : "0"
+    );
 
   const [
     currency,
     setCurrency,
   ] =
     useState<Currency>(
-      "CZK"
+      initialData?.currency ??
+        "CZK"
     );
 
   const [
     onlinePaymentsEnabled,
     setOnlinePaymentsEnabled,
   ] =
-    useState(false);
+    useState(
+      initialData
+        ?.onlinePaymentsEnabled ??
+        false
+    );
+
+  /*
+    REGISTRATION
+  */
 
   const [
     highlights,
     setHighlights,
   ] =
-    useState("");
+    useState(
+      (
+        initialData?.highlights ??
+        []
+      ).join("\n")
+    );
 
   const [
     registrationStatus,
     setRegistrationStatus,
   ] =
     useState<RegistrationStatus>(
-      "coming-soon"
+      initialData
+        ?.registrationStatus ??
+        "coming-soon"
     );
 
   const [
     registrationUrl,
     setRegistrationUrl,
   ] =
-    useState("");
+    useState(
+      initialData
+        ?.registrationUrl ??
+        ""
+    );
 
   const [
     registrationDeadline,
     setRegistrationDeadline,
   ] =
-    useState("");
+    useState(
+      toLocalDateTime(
+        initialData
+          ?.registrationDeadline
+      )
+    );
 
   const [
     registrationNote,
     setRegistrationNote,
   ] =
-    useState("");
+    useState(
+      initialData
+        ?.registrationNote ??
+        ""
+    );
+
+  /*
+    UI STATE
+  */
 
   const [
     submitting,
@@ -251,9 +499,9 @@ export default function AdminEventForm() {
     error,
     setError,
   ] =
-    useState<
-      string | null
-    >(null);
+    useState<string | null>(
+      null
+    );
 
   /*
     COVER PREVIEW
@@ -286,8 +534,16 @@ export default function AdminEventForm() {
     coverImage,
   ]);
 
+  const displayedCoverUrl =
+    coverImagePreview ||
+    (
+      coverImageAssetId
+        ? existingCoverUrl
+        : ""
+    );
+
   /*
-    GALLERY PREVIEW CLEANUP
+    GALLERY CLEANUP
   */
 
   useEffect(() => {
@@ -299,15 +555,21 @@ export default function AdminEventForm() {
 
   useEffect(() => {
     return () => {
-      galleryImagesRef.current.forEach(
-        (
-          image
-        ) => {
-          URL.revokeObjectURL(
-            image.previewUrl
-          );
-        }
-      );
+      galleryImagesRef
+        .current
+        .forEach(
+          (
+            image
+          ) => {
+            if (
+              image.objectUrl
+            ) {
+              URL.revokeObjectURL(
+                image.previewUrl
+              );
+            }
+          }
+        );
     };
   }, []);
 
@@ -349,10 +611,6 @@ export default function AdminEventForm() {
     setError(null);
 
     if (!file) {
-      setCoverImage(
-        null
-      );
-
       return;
     }
 
@@ -379,7 +637,8 @@ export default function AdminEventForm() {
       ChangeEvent<HTMLInputElement>
   ) {
     const file =
-      event.target.files?.[0] ??
+      event.target
+        .files?.[0] ??
       null;
 
     setCoverFile(
@@ -390,13 +649,30 @@ export default function AdminEventForm() {
       "";
   }
 
+  function removeCoverImage() {
+    setCoverImage(
+      null
+    );
+
+    setCoverImageAssetId(
+      ""
+    );
+
+    setExistingCoverUrl(
+      ""
+    );
+
+    setCoverImageAlt(
+      ""
+    );
+  }
+
   /*
     GALLERY
   */
 
   function addGalleryFiles(
-    files:
-      File[]
+    files: File[]
   ) {
     setError(null);
 
@@ -438,7 +714,9 @@ export default function AdminEventForm() {
 
     const newImages =
       files.map(
-        (file) => ({
+        (
+          file
+        ): GalleryImageDraft => ({
           id:
             crypto.randomUUID(),
 
@@ -448,6 +726,9 @@ export default function AdminEventForm() {
             URL.createObjectURL(
               file
             ),
+
+          objectUrl:
+            true,
 
           alt:
             "",
@@ -470,7 +751,8 @@ export default function AdminEventForm() {
   ) {
     const files =
       Array.from(
-        event.target.files ??
+        event.target
+          .files ??
           []
       );
 
@@ -497,7 +779,9 @@ export default function AdminEventForm() {
               item.id === id
           );
 
-        if (image) {
+        if (
+          image?.objectUrl
+        ) {
           URL.revokeObjectURL(
             image.previewUrl
           );
@@ -510,6 +794,26 @@ export default function AdminEventForm() {
             item.id !== id
         );
       }
+    );
+  }
+
+  function removeAllGalleryImages() {
+    galleryImages.forEach(
+      (
+        image
+      ) => {
+        if (
+          image.objectUrl
+        ) {
+          URL.revokeObjectURL(
+            image.previewUrl
+          );
+        }
+      }
+    );
+
+    setGalleryImages(
+      []
     );
   }
 
@@ -536,7 +840,7 @@ export default function AdminEventForm() {
   }
 
   /*
-    SANITY ASSET UPLOAD
+    IMAGE UPLOAD
   */
 
   async function uploadImage(
@@ -584,7 +888,14 @@ export default function AdminEventForm() {
       );
     }
 
-    return data.asset._id;
+    return {
+      assetId:
+        data.asset._id,
+
+      url:
+        data.asset.url ??
+        "",
+    };
   }
 
   /*
@@ -597,9 +908,18 @@ export default function AdminEventForm() {
   ) {
     event.preventDefault();
 
+    if (submitting) {
+      return;
+    }
+
     if (
-      submitting
+      editing &&
+      !currentSlug
     ) {
+      setError(
+        "The event cannot be updated because its current slug is missing."
+      );
+
       return;
     }
 
@@ -612,72 +932,157 @@ export default function AdminEventForm() {
     );
 
     try {
-      /*
-        UPLOAD MEDIA
-      */
+      setUploadingImages(
+        true
+      );
 
-      let coverImageAssetId:
-        string | undefined;
+      let finalCoverAssetId =
+        coverImageAssetId;
 
-      const uploadedGallery: {
+      if (
+        coverImage
+      ) {
+        const uploadedCover =
+          await uploadImage(
+            coverImage
+          );
+
+        finalCoverAssetId =
+          uploadedCover.assetId;
+      }
+
+      const finalGallery: {
         assetId: string;
         alt: string;
       }[] = [];
 
-      if (
-        coverImage ||
-        galleryImages.length >
-          0
+      for (
+        const image
+        of galleryImages
       ) {
-        setUploadingImages(
-          true
-        );
+        if (
+          image.assetId
+        ) {
+          finalGallery.push(
+            {
+              assetId:
+                image.assetId,
 
-        try {
-          if (
-            coverImage
-          ) {
-            coverImageAssetId =
-              await uploadImage(
-                coverImage
-              );
-          }
+              alt:
+                image.alt.trim(),
+            }
+          );
 
-          for (
-            const image
-            of galleryImages
-          ) {
-            const assetId =
-              await uploadImage(
-                image.file
-              );
+          continue;
+        }
 
-            uploadedGallery.push(
-              {
-                assetId,
-
-                alt:
-                  image.alt.trim(),
-              }
+        if (
+          image.file
+        ) {
+          const uploaded =
+            await uploadImage(
+              image.file
             );
-          }
-        } finally {
-          setUploadingImages(
-            false
+
+          finalGallery.push(
+            {
+              assetId:
+                uploaded.assetId,
+
+              alt:
+                image.alt.trim(),
+            }
           );
         }
       }
 
-      /*
-        CREATE EVENT
-      */
+      setUploadingImages(
+        false
+      );
+
+      const requestBody = {
+        title,
+        slug,
+        label,
+        status,
+
+        date,
+        time,
+
+        location,
+        venue,
+        address,
+
+        description,
+        fullDescription,
+
+        coverImageAssetId:
+          finalCoverAssetId,
+
+        coverImageAlt:
+          coverImageAlt.trim(),
+
+        gallery:
+          finalGallery,
+
+        capacity:
+          capacity.trim()
+            ? Number(
+                capacity
+              )
+            : undefined,
+
+        price:
+          price.trim()
+            ? Number(
+                price
+              )
+            : 0,
+
+        currency,
+
+        onlinePaymentsEnabled,
+
+        highlights:
+          highlights
+            .split("\n")
+            .map(
+              (
+                item
+              ) =>
+                item.trim()
+            )
+            .filter(Boolean),
+
+        registrationStatus,
+
+        registrationUrl,
+
+        registrationDeadline:
+          registrationDeadline
+            ? new Date(
+                registrationDeadline
+              ).toISOString()
+            : "",
+
+        registrationNote,
+      };
+
+      const endpoint =
+        editing
+          ? `/api/admin/events/${encodeURIComponent(
+              currentSlug!
+            )}`
+          : "/api/admin/events";
 
       const response =
         await fetch(
-          "/api/admin/events",
+          endpoint,
           {
             method:
-              "POST",
+              editing
+                ? "PATCH"
+                : "POST",
 
             headers: {
               "Content-Type":
@@ -685,72 +1090,9 @@ export default function AdminEventForm() {
             },
 
             body:
-              JSON.stringify({
-                title,
-                slug,
-                label,
-                status,
-
-                date,
-                time,
-
-                location,
-                venue,
-                address,
-
-                description,
-                fullDescription,
-
-                coverImageAssetId,
-
-                coverImageAlt:
-                  coverImageAlt.trim(),
-
-                gallery:
-                  uploadedGallery,
-
-                capacity:
-                  capacity.trim()
-                    ? Number(
-                        capacity
-                      )
-                    : undefined,
-
-                price:
-                  price.trim()
-                    ? Number(
-                        price
-                      )
-                    : 0,
-
-                currency,
-
-                onlinePaymentsEnabled,
-
-                highlights:
-                  highlights
-                    .split("\n")
-                    .map(
-                      (
-                        item
-                      ) =>
-                        item.trim()
-                    )
-                    .filter(Boolean),
-
-                registrationStatus,
-
-                registrationUrl,
-
-                registrationDeadline:
-                  registrationDeadline
-                    ? new Date(
-                        registrationDeadline
-                      ).toISOString()
-                    : "",
-
-                registrationNote,
-              }),
+              JSON.stringify(
+                requestBody
+              ),
           }
         );
 
@@ -770,7 +1112,11 @@ export default function AdminEventForm() {
       ) {
         setError(
           data.error ??
-            "Could not create event."
+            (
+              editing
+                ? "Could not update event."
+                : "Could not create event."
+            )
         );
 
         return;
@@ -788,9 +1134,15 @@ export default function AdminEventForm() {
         submitError instanceof
           Error
           ? submitError.message
-          : "Could not create event."
+          : editing
+            ? "Could not update event."
+            : "Could not create event."
       );
     } finally {
+      setUploadingImages(
+        false
+      );
+
       setSubmitting(
         false
       );
@@ -824,22 +1176,15 @@ export default function AdminEventForm() {
         >
           <input
             required
-
-            value={
-              title
-            }
-
+            value={title}
             onChange={(
               event
             ) =>
               setTitle(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="Career Boost: CV & LinkedIn Edition"
-
             className={
               inputClass
             }
@@ -849,25 +1194,22 @@ export default function AdminEventForm() {
         <div className="grid gap-5 md:grid-cols-2">
           <Field
             label="Slug"
-
-            hint="Leave blank to generate it automatically."
+            hint={
+              editing
+                ? "Changing the slug also changes the public event URL."
+                : "Leave blank to generate it automatically."
+            }
           >
             <input
-              value={
-                slug
-              }
-
+              value={slug}
               onChange={(
                 event
               ) =>
                 setSlug(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               placeholder="career-boost-cv-linkedin"
-
               className={
                 inputClass
               }
@@ -880,22 +1222,15 @@ export default function AdminEventForm() {
           >
             <input
               required
-
-              value={
-                label
-              }
-
+              value={label}
               onChange={(
                 event
               ) =>
                 setLabel(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               placeholder="CAREER"
-
               className={
                 inputClass
               }
@@ -906,28 +1241,20 @@ export default function AdminEventForm() {
         <Field
           label="Short description"
           required
-
           hint="Used on event cards and overview pages."
         >
           <textarea
             required
             rows={3}
-
-            value={
-              description
-            }
-
+            value={description}
             onChange={(
               event
             ) =>
               setDescription(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="A short introduction to the event."
-
             className={
               inputClass
             }
@@ -936,27 +1263,21 @@ export default function AdminEventForm() {
 
         <Field
           label="Full description"
-
           hint="Separate paragraphs with an empty line."
         >
           <textarea
             rows={8}
-
             value={
               fullDescription
             }
-
             onChange={(
               event
             ) =>
               setFullDescription(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="Write the full event description here..."
-
             className={
               inputClass
             }
@@ -968,38 +1289,32 @@ export default function AdminEventForm() {
         title="Cover image"
         description="Main visual used on event cards and the event detail page."
       >
-        {!coverImagePreview ? (
+        {!displayedCoverUrl ? (
           <div
             onDragEnter={(
               event
             ) => {
               event.preventDefault();
-
               setDraggingCover(
                 true
               );
             }}
-
             onDragOver={(
               event
             ) => {
               event.preventDefault();
-
               setDraggingCover(
                 true
               );
             }}
-
             onDragLeave={(
               event
             ) => {
               event.preventDefault();
-
               setDraggingCover(
                 false
               );
             }}
-
             onDrop={(
               event
             ) => {
@@ -1018,7 +1333,6 @@ export default function AdminEventForm() {
                 file
               );
             }}
-
             className={
               draggingCover
                 ? "rounded-2xl border border-dashed border-[#5790FF] bg-[#0057FF]/10 p-8 text-center transition"
@@ -1048,13 +1362,10 @@ export default function AdminEventForm() {
 
               <input
                 type="file"
-
                 accept="image/jpeg,image/png,image/webp"
-
                 onChange={
                   handleCoverInput
                 }
-
                 className="hidden"
               />
             </label>
@@ -1064,42 +1375,33 @@ export default function AdminEventForm() {
             <div className="relative aspect-video overflow-hidden bg-[#091725]">
               <img
                 src={
-                  coverImagePreview
+                  displayedCoverUrl
                 }
-
                 alt=""
-
                 className="absolute inset-0 h-full w-full object-cover"
               />
-
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#071422]/90 to-transparent p-4 pt-16">
-                <p className="truncate text-xs text-[#A9B5C3]">
-                  {
-                    coverImage
-                      ?.name
-                  }
-                </p>
-              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <p className="text-xs font-semibold text-white">
-                  Cover image
-                  selected
+                  {coverImage
+                    ? "New cover image selected"
+                    : "Current cover image"}
                 </p>
 
-                <p className="mt-1 text-[10px] text-[#53687D]">
-                  {coverImage
-                    ? `${(
-                        coverImage.size /
-                        1024 /
-                        1024
-                      ).toFixed(
-                        2
-                      )} MB`
-                    : ""}
-                </p>
+                {coverImage && (
+                  <p className="mt-1 text-[10px] text-[#53687D]">
+                    {(
+                      coverImage.size /
+                      1024 /
+                      1024
+                    ).toFixed(
+                      2
+                    )}{" "}
+                    MB
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -1108,30 +1410,19 @@ export default function AdminEventForm() {
 
                   <input
                     type="file"
-
                     accept="image/jpeg,image/png,image/webp"
-
                     onChange={
                       handleCoverInput
                     }
-
                     className="hidden"
                   />
                 </label>
 
                 <button
                   type="button"
-
-                  onClick={() => {
-                    setCoverImage(
-                      null
-                    );
-
-                    setCoverImageAlt(
-                      ""
-                    );
-                  }}
-
+                  onClick={
+                    removeCoverImage
+                  }
                   className="rounded-lg border border-red-400/20 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
                 >
                   Remove
@@ -1143,25 +1434,20 @@ export default function AdminEventForm() {
 
         <Field
           label="Alternative text"
-
           hint="Describe the image briefly for accessibility."
         >
           <input
             value={
               coverImageAlt
             }
-
             onChange={(
               event
             ) =>
               setCoverImageAlt(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="Career Boost event cover"
-
             className={
               inputClass
             }
@@ -1183,7 +1469,6 @@ export default function AdminEventForm() {
               true
             );
           }}
-
           onDragOver={(
             event
           ) => {
@@ -1193,7 +1478,6 @@ export default function AdminEventForm() {
               true
             );
           }}
-
           onDragLeave={(
             event
           ) => {
@@ -1203,7 +1487,6 @@ export default function AdminEventForm() {
               false
             );
           }}
-
           onDrop={(
             event
           ) => {
@@ -1221,7 +1504,6 @@ export default function AdminEventForm() {
               )
             );
           }}
-
           className={
             draggingGallery
               ? "rounded-2xl border border-dashed border-[#5790FF] bg-[#0057FF]/10 p-6 text-center transition"
@@ -1249,13 +1531,10 @@ export default function AdminEventForm() {
             <input
               type="file"
               multiple
-
               accept="image/jpeg,image/png,image/webp"
-
               onChange={
                 handleGalleryInput
               }
-
               className="hidden"
             />
           </label>
@@ -1278,23 +1557,9 @@ export default function AdminEventForm() {
 
               <button
                 type="button"
-
-                onClick={() => {
-                  galleryImages.forEach(
-                    (
-                      image
-                    ) => {
-                      URL.revokeObjectURL(
-                        image.previewUrl
-                      );
-                    }
-                  );
-
-                  setGalleryImages(
-                    []
-                  );
-                }}
-
+                onClick={
+                  removeAllGalleryImages
+                }
                 className="text-xs font-semibold text-red-300 transition hover:text-red-200"
               >
                 Remove all
@@ -1311,7 +1576,6 @@ export default function AdminEventForm() {
                     key={
                       image.id
                     }
-
                     className="overflow-hidden rounded-2xl border border-white/10 bg-[#071422]"
                   >
                     <div className="relative aspect-video overflow-hidden bg-[#091725]">
@@ -1319,9 +1583,7 @@ export default function AdminEventForm() {
                         src={
                           image.previewUrl
                         }
-
                         alt=""
-
                         className="absolute inset-0 h-full w-full object-cover"
                       />
 
@@ -1332,13 +1594,11 @@ export default function AdminEventForm() {
 
                       <button
                         type="button"
-
                         onClick={() =>
                           removeGalleryImage(
                             image.id
                           )
                         }
-
                         className="absolute right-3 top-3 rounded-lg bg-[#071422]/80 px-2.5 py-1.5 text-[10px] font-semibold text-red-200 backdrop-blur transition hover:bg-red-500/20"
                       >
                         Remove
@@ -1346,11 +1606,10 @@ export default function AdminEventForm() {
                     </div>
 
                     <div className="p-4">
-                      <p className="truncate text-[10px] text-[#53687D]">
-                        {
-                          image.file
-                            .name
-                        }
+                      <p className="text-[10px] text-[#53687D]">
+                        {image.file
+                          ? image.file.name
+                          : "Existing image"}
                       </p>
 
                       <label className="mt-3 block text-xs font-semibold text-[#A9B5C3]">
@@ -1361,19 +1620,15 @@ export default function AdminEventForm() {
                         value={
                           image.alt
                         }
-
                         onChange={(
                           event
                         ) =>
                           updateGalleryAlt(
                             image.id,
-                            event.target
-                              .value
+                            event.target.value
                           )
                         }
-
                         placeholder="Describe this photo"
-
                         className={
                           inputClass
                         }
@@ -1399,20 +1654,14 @@ export default function AdminEventForm() {
             <input
               required
               type="date"
-
-              value={
-                date
-              }
-
+              value={date}
               onChange={(
                 event
               ) =>
                 setDate(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               className={
                 inputClass
               }
@@ -1422,24 +1671,32 @@ export default function AdminEventForm() {
           <Field
             label="Time"
             required
+            hint="Use 24-hour format, for example 19:00."
           >
             <input
               required
-              type="time"
-
-              value={
-                time
-              }
-
+              type="text"
+              maxLength={5}
+              pattern="([01][0-9]|2[0-3]):[0-5][0-9]"
+              value={time}
               onChange={(
                 event
-              ) =>
-                setTime(
-                  event.target
-                    .value
-                )
-              }
+              ) => {
+                const value =
+                  event.target.value;
 
+                if (
+                  value === "" ||
+                  /^[0-9]{0,2}:?[0-9]{0,2}$/.test(
+                    value
+                  )
+                ) {
+                  setTime(
+                    value
+                  );
+                }
+              }}
+              placeholder="19:00"
               className={
                 inputClass
               }
@@ -1451,27 +1708,19 @@ export default function AdminEventForm() {
           <Field
             label="Location"
             required
-
             hint="For example Prague 1 or VŠE."
           >
             <input
               required
-
-              value={
-                location
-              }
-
+              value={location}
               onChange={(
                 event
               ) =>
                 setLocation(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               placeholder="VŠE"
-
               className={
                 inputClass
               }
@@ -1482,21 +1731,15 @@ export default function AdminEventForm() {
             label="Venue"
           >
             <input
-              value={
-                venue
-              }
-
+              value={venue}
               onChange={(
                 event
               ) =>
                 setVenue(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               placeholder="SB 213"
-
               className={
                 inputClass
               }
@@ -1508,21 +1751,15 @@ export default function AdminEventForm() {
           label="Address"
         >
           <input
-            value={
-              address
-            }
-
+            value={address}
             onChange={(
               event
             ) =>
               setAddress(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="nám. Winstona Churchilla 1938/4, Prague"
-
             className={
               inputClass
             }
@@ -1542,22 +1779,17 @@ export default function AdminEventForm() {
               type="number"
               min="1"
               step="1"
-
               value={
                 capacity
               }
-
               onChange={(
                 event
               ) =>
                 setCapacity(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               placeholder="50"
-
               className={
                 inputClass
               }
@@ -1573,20 +1805,14 @@ export default function AdminEventForm() {
               type="number"
               min="0"
               step="0.01"
-
-              value={
-                price
-              }
-
+              value={price}
               onChange={(
                 event
               ) =>
                 setPrice(
-                  event.target
-                    .value
+                  event.target.value
                 )
               }
-
               className={
                 inputClass
               }
@@ -1598,20 +1824,15 @@ export default function AdminEventForm() {
             required
           >
             <select
-              value={
-                currency
-              }
-
+              value={currency}
               onChange={(
                 event
               ) =>
                 setCurrency(
                   event.target
-                    .value as
-                      Currency
+                    .value as Currency
                 )
               }
-
               className={
                 inputClass
               }
@@ -1630,34 +1851,28 @@ export default function AdminEventForm() {
         <label className="flex cursor-pointer items-start gap-4 rounded-2xl border border-white/10 bg-[#071422]/60 p-4">
           <input
             type="checkbox"
-
             checked={
               onlinePaymentsEnabled
             }
-
             onChange={(
               event
             ) =>
               setOnlinePaymentsEnabled(
-                event.target
-                  .checked
+                event.target.checked
               )
             }
-
             className="mt-1 h-4 w-4"
           />
 
           <div>
             <p className="text-sm font-semibold text-white">
-              Enable online
-              payments
+              Enable online payments
             </p>
 
             <p className="mt-1 text-xs leading-5 text-[#71869A]">
-              Allows this event
-              to use the payment
-              gateway when the
-              global payment
+              Allows this event to
+              use the payment gateway
+              when the global payment
               switch is enabled.
             </p>
           </div>
@@ -1677,17 +1892,15 @@ export default function AdminEventForm() {
               value={
                 registrationStatus
               }
-
               onChange={(
                 event
               ) =>
                 setRegistrationStatus(
                   event.target
                     .value as
-                      RegistrationStatus
+                    RegistrationStatus
                 )
               }
-
               className={
                 inputClass
               }
@@ -1715,20 +1928,16 @@ export default function AdminEventForm() {
             required
           >
             <select
-              value={
-                status
-              }
-
+              value={status}
               onChange={(
                 event
               ) =>
                 setStatus(
                   event.target
                     .value as
-                      EventStatus
+                    EventStatus
                 )
               }
-
               className={
                 inputClass
               }
@@ -1746,27 +1955,21 @@ export default function AdminEventForm() {
 
         <Field
           label="External registration URL"
-
           hint="Usually leave empty when using BBA Club registration."
         >
           <input
             type="url"
-
             value={
               registrationUrl
             }
-
             onChange={(
               event
             ) =>
               setRegistrationUrl(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="https://..."
-
             className={
               inputClass
             }
@@ -1778,20 +1981,16 @@ export default function AdminEventForm() {
         >
           <input
             type="datetime-local"
-
             value={
               registrationDeadline
             }
-
             onChange={(
               event
             ) =>
               setRegistrationDeadline(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             className={
               inputClass
             }
@@ -1803,22 +2002,17 @@ export default function AdminEventForm() {
         >
           <textarea
             rows={3}
-
             value={
               registrationNote
             }
-
             onChange={(
               event
             ) =>
               setRegistrationNote(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder="Optional note shown with registration information."
-
             className={
               inputClass
             }
@@ -1832,29 +2026,23 @@ export default function AdminEventForm() {
       >
         <Field
           label="Highlights"
-
           hint="Put one highlight on each line."
         >
           <textarea
             rows={5}
-
             value={
               highlights
             }
-
             onChange={(
               event
             ) =>
               setHighlights(
-                event.target
-                  .value
+                event.target.value
               )
             }
-
             placeholder={
               "Improve your CV\nOptimize your LinkedIn profile\nAsk questions directly to the speaker"
             }
-
             className={
               inputClass
             }
@@ -1865,17 +2053,12 @@ export default function AdminEventForm() {
       <section className="flex flex-col-reverse gap-3 border-t border-white/10 pt-6 sm:flex-row sm:justify-end">
         <button
           type="button"
-
           onClick={() =>
             router.push(
               "/admin/events"
             )
           }
-
-          disabled={
-            busy
-          }
-
+          disabled={busy}
           className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-[#A9B5C3] transition hover:border-white/20 hover:text-white disabled:opacity-50"
         >
           Cancel
@@ -1883,26 +2066,23 @@ export default function AdminEventForm() {
 
         <button
           type="submit"
-
-          disabled={
-            busy
-          }
-
+          disabled={busy}
           className="rounded-xl bg-[#0057FF] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#2874FF] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {uploadingImages
             ? "Uploading images..."
             : submitting
-              ? "Creating event..."
-              : "Create event"}
+              ? editing
+                ? "Saving changes..."
+                : "Creating event..."
+              : editing
+                ? "Save changes"
+                : "Create event"}
         </button>
       </section>
     </form>
   );
 }
-
-const inputClass =
-  "mt-2 w-full rounded-xl border border-white/10 bg-[#071422] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#53687D] focus:border-[#0057FF]";
 
 function Section({
   title,
@@ -1911,9 +2091,7 @@ function Section({
 }: {
   title: string;
   description: string;
-
-  children:
-    React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <section className="rounded-[24px] border border-white/10 bg-[#0B1A29] p-5 md:p-6">
@@ -1943,9 +2121,7 @@ function Field({
   label: string;
   hint?: string;
   required?: boolean;
-
-  children:
-    React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <div>
