@@ -25,6 +25,7 @@ type ResendWebhookEvent = {
 
 type EmailDeliveryStatus =
   | "sent"
+  | "delayed"
   | "delivered"
   | "bounced"
   | "complained"
@@ -42,6 +43,7 @@ type EmailUpdate = {
     EmailDeliveryStatus;
 
   emailDeliveredAt?: string;
+  emailDelayedAt?: string;
   emailBouncedAt?: string;
   emailComplainedAt?: string;
   emailFailedAt?: string;
@@ -208,7 +210,14 @@ function getEmailUpdate(
     */
 
     case "email.delivery_delayed":
-      return null;
+      update = {
+        emailDeliveryStatus:
+          "delayed",
+
+        emailDelayedAt:
+          timestamp,
+      };
+      break;
 
     default:
       return null;

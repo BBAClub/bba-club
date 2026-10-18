@@ -11,6 +11,7 @@
   "dependencies": {
     "@sanity/image-url": "^2.1.1",
     "@sanity/vision": "^5.31.2",
+    "@vercel/analytics": "^2.0.1",
     "@vercel/blob": "^2.8.0",
     "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
