@@ -32,6 +32,10 @@ type SendEventRegistrationEmailProps = {
   waitlistPosition?: number;
 };
 
+type PaymentCurrency =
+  | "CZK"
+  | "EUR";
+
 type SendEventPaymentRequestEmailProps = {
   registrationId: string;
 
@@ -43,7 +47,9 @@ type SendEventPaymentRequestEmailProps = {
 
   reservationExpiresAt: string;
 
-  amountCzk: number;
+  amount: number;
+
+  currency: PaymentCurrency;
 
   firstName: string;
   email: string;
@@ -158,24 +164,24 @@ function formatPaymentDeadline(
 }
 
 function formatPrice(
-  amountCzk: number
+  amount: number,
+  currency: PaymentCurrency
 ) {
-  return new Intl.NumberFormat(
-    "en-GB",
-    {
-      style:
-        "currency",
+  const formatted =
+    new Intl.NumberFormat(
+      "en-GB",
+      {
+        minimumFractionDigits:
+          0,
 
-      currency:
-        "CZK",
+        maximumFractionDigits:
+          2,
+      }
+    ).format(amount);
 
-      minimumFractionDigits:
-        0,
-
-      maximumFractionDigits:
-        2,
-    }
-  ).format(amountCzk);
+  return currency === "EUR"
+    ? `${formatted} €`
+    : `${formatted} Kč`;
 }
 
 async function createTicketQr(
@@ -948,7 +954,8 @@ export async function sendEventPaymentRequestEmail({
   paymentTransactionId,
   paymentUrl,
   reservationExpiresAt,
-  amountCzk,
+  amount,
+  currency,
   firstName,
   email,
   eventTitle,
@@ -1002,8 +1009,9 @@ export async function sendEventPaymentRequestEmail({
 
   const formattedPrice =
     formatPrice(
-      amountCzk
-    );
+    amount,
+    currency
+  );
 
   const place =
     venue ??

@@ -6,10 +6,27 @@ import { isAdminAuthenticated } from "@/lib/admin/auth";
 export const runtime = "nodejs";
 
 type RegistrationStatus =
+  | "pending-payment"
   | "confirmed"
   | "waitlist"
   | "cancelled"
   | "checked-in";
+
+type PaymentStatus =
+  | "not_required"
+  | "pay_on_site"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
+
+type EmailDeliveryStatus =
+  | "not-sent"
+  | "sent"
+  | "delivered"
+  | "bounced"
+  | "complained"
+  | "failed";
 
 type RequestBody = {
   action?: unknown;
@@ -30,6 +47,11 @@ type EventDocument = {
 
   capacity?: number;
 
+  price?: number;
+  currency?: "CZK" | "EUR";
+
+  onlinePaymentsEnabled?: boolean;
+
   registrationStatus?:
     | "coming-soon"
     | "open"
@@ -47,15 +69,52 @@ type RegistrationDocument = {
   email?: string;
 
   university?: string;
+  note?: string;
 
   status?: RegistrationStatus;
 
+  ticketCode?: string;
+
   registeredAt?: string;
   checkedInAt?: string;
+
+  /*
+    PAYMENT
+  */
+
+  paymentStatus?: PaymentStatus;
+
+  paymentProvider?: string;
+
+  paymentAmount?: number;
+  paymentCurrency?: string;
+
+  paymentTransactionId?: string;
+
+  paymentCreatedAt?: string;
+  reservationExpiresAt?: string;
+
+  paidAt?: string;
+  refundedAt?: string;
+
+  /*
+    EMAIL
+  */
+
+  confirmationEmailSentAt?: string;
+  confirmationEmailId?: string;
+
+  emailDeliveryStatus?:
+    EmailDeliveryStatus;
+
+  emailBouncedAt?: string;
 };
 
-function getString(value: unknown) {
-  return typeof value === "string"
+function getString(
+  value: unknown
+) {
+  return typeof value ===
+    "string"
     ? value.trim()
     : "";
 }
@@ -64,13 +123,18 @@ export async function POST(
   request: Request
 ) {
   try {
+    /*
+      AUTH
+    */
+
     const authenticated =
       await isAdminAuthenticated();
 
     if (!authenticated) {
       return NextResponse.json(
         {
-          error: "Unauthorized.",
+          error:
+            "Unauthorized.",
         },
         {
           status: 401,
@@ -78,15 +142,22 @@ export async function POST(
       );
     }
 
-    let body: RequestBody;
+    /*
+      BODY
+    */
+
+    let body:
+      RequestBody;
 
     try {
       body =
-        (await request.json()) as RequestBody;
+        (await request.json()) as
+          RequestBody;
     } catch {
       return NextResponse.json(
         {
-          error: "Invalid request.",
+          error:
+            "Invalid request.",
         },
         {
           status: 400,
@@ -95,13 +166,18 @@ export async function POST(
     }
 
     const action =
-      getString(body.action);
+      getString(
+        body.action
+      );
 
     /*
       ALL EVENTS + STATS
     */
 
-    if (action === "overview") {
+    if (
+      action ===
+      "overview"
+    ) {
       const events =
         await client.fetch<
           EventDocument[]
@@ -112,13 +188,25 @@ export async function POST(
             ]
             | order(date asc) {
               _id,
+
               title,
-              "slug": slug.current,
+
+              "slug":
+                slug.current,
+
               date,
               time,
+
               venue,
               location,
+
               capacity,
+
+              price,
+              currency,
+
+              onlinePaymentsEnabled,
+
               registrationStatus
             }
           `
@@ -128,16 +216,25 @@ export async function POST(
         await client.fetch<
           Pick<
             RegistrationDocument,
-            "_id" | "eventId" | "status"
+            | "_id"
+            | "eventId"
+            | "status"
+            | "reservationExpiresAt"
           >[]
         >(
           `
             *[
-              _type == "eventRegistration"
+              _type ==
+                "eventRegistration"
             ] {
               _id,
-              "eventId": event._ref,
-              status
+
+              "eventId":
+                event._ref,
+
+              status,
+
+              reservationExpiresAt
             }
           `
         );
@@ -150,23 +247,38 @@ export async function POST(
             waitlist: number;
             checkedIn: number;
             cancelled: number;
+            pendingPayment: number;
+            activePendingPayment: number;
           }
         >();
 
-      for (const event of events) {
-        stats.set(event._id, {
-          confirmed: 0,
-          waitlist: 0,
-          checkedIn: 0,
-          cancelled: 0,
-        });
+      for (
+        const event
+        of events
+      ) {
+        stats.set(
+          event._id,
+          {
+            confirmed: 0,
+            waitlist: 0,
+            checkedIn: 0,
+            cancelled: 0,
+            pendingPayment: 0,
+            activePendingPayment: 0,
+          }
+        );
       }
+
+      const now =
+        Date.now();
 
       for (
         const registration
         of registrations
       ) {
-        if (!registration.eventId) {
+        if (
+          !registration.eventId
+        ) {
           continue;
         }
 
@@ -182,59 +294,116 @@ export async function POST(
         switch (
           registration.status
         ) {
+          case "pending-payment": {
+            current.pendingPayment +=
+              1;
+
+            if (
+              registration.reservationExpiresAt
+            ) {
+              const expiresAt =
+                new Date(
+                  registration.reservationExpiresAt
+                ).getTime();
+
+              if (
+                !Number.isNaN(
+                  expiresAt
+                ) &&
+                expiresAt >
+                  now
+              ) {
+                current.activePendingPayment +=
+                  1;
+              }
+            }
+
+            break;
+          }
+
           case "confirmed":
-            current.confirmed += 1;
+            current.confirmed +=
+              1;
+
             break;
 
           case "waitlist":
-            current.waitlist += 1;
+            current.waitlist +=
+              1;
+
             break;
 
           case "checked-in":
-            current.checkedIn += 1;
+            current.checkedIn +=
+              1;
+
             break;
 
           case "cancelled":
-            current.cancelled += 1;
+            current.cancelled +=
+              1;
+
             break;
         }
       }
 
       const result =
-        events.map((event) => {
-          const eventStats =
-            stats.get(event._id) ?? {
-              confirmed: 0,
-              waitlist: 0,
-              checkedIn: 0,
-              cancelled: 0,
+        events.map(
+          (
+            event
+          ) => {
+            const eventStats =
+              stats.get(
+                event._id
+              ) ?? {
+                confirmed: 0,
+                waitlist: 0,
+                checkedIn: 0,
+                cancelled: 0,
+                pendingPayment: 0,
+                activePendingPayment: 0,
+              };
+
+            /*
+              Confirmed + checked-in
+              attendees are registered.
+
+              Active pending payments
+              also reserve capacity.
+            */
+
+            const occupied =
+              eventStats.confirmed +
+              eventStats.checkedIn;
+
+            const capacityUsed =
+              occupied +
+              eventStats.activePendingPayment;
+
+            const remaining =
+              typeof event.capacity ===
+                "number" &&
+              event.capacity > 0
+                ? Math.max(
+                    event.capacity -
+                      capacityUsed,
+                    0
+                  )
+                : null;
+
+            return {
+              ...event,
+
+              stats: {
+                ...eventStats,
+
+                occupied,
+                capacityUsed,
+                remaining,
+              },
             };
-
-          const occupied =
-            eventStats.confirmed +
-            eventStats.checkedIn;
-
-          const remaining =
-            typeof event.capacity ===
-              "number" &&
-            event.capacity > 0
-              ? Math.max(
-                  event.capacity -
-                    occupied,
-                  0
-                )
-              : null;
-
-          return {
-            ...event,
-
-            stats: {
-              ...eventStats,
-              occupied,
-              remaining,
-            },
-          };
-        });
+          }
+        );
 
       return NextResponse.json({
         success: true,
@@ -246,9 +415,14 @@ export async function POST(
       ONE EVENT + REGISTRATIONS
     */
 
-    if (action === "event") {
+    if (
+      action ===
+      "event"
+    ) {
       const eventId =
-        getString(body.eventId);
+        getString(
+          body.eventId
+        );
 
       if (!eventId) {
         return NextResponse.json(
@@ -272,13 +446,25 @@ export async function POST(
               && _id == $eventId
             ][0] {
               _id,
+
               title,
-              "slug": slug.current,
+
+              "slug":
+                slug.current,
+
               date,
               time,
+
               venue,
               location,
+
               capacity,
+
+              price,
+              currency,
+
+              onlinePaymentsEnabled,
+
               registrationStatus
             }
           `,
@@ -305,19 +491,72 @@ export async function POST(
         >(
           `
             *[
-              _type == "eventRegistration"
-              && event._ref == $eventId
+              _type ==
+                "eventRegistration"
+
+              && event._ref ==
+                $eventId
             ]
-            | order(registeredAt desc) {
+            | order(
+                registeredAt desc
+              ) {
               _id,
-              "eventId": event._ref,
+
+              "eventId":
+                event._ref,
+
               firstName,
               lastName,
               email,
+
               university,
+              note,
+
               status,
+
+              ticketCode,
+
               registeredAt,
-              checkedInAt
+              checkedInAt,
+
+              paymentStatus,
+              paymentProvider,
+
+              paymentAmount,
+              paymentCurrency,
+
+              paymentTransactionId,
+
+              paymentCreatedAt,
+              reservationExpiresAt,
+
+              paidAt,
+              refundedAt,
+
+              confirmationEmailSentAt,
+              confirmationEmailId,
+
+              emailBouncedAt,
+
+              "emailDeliveryStatus":
+                select(
+                  defined(
+                    emailDeliveryStatus
+                  ) =>
+                    emailDeliveryStatus,
+
+                  defined(
+                    emailBouncedAt
+                  ) =>
+                    "bounced",
+
+                  defined(
+                    confirmationEmailSentAt
+                  ) =>
+                    "sent",
+
+                  "not-sent"
+                )
             }
           `,
           {
@@ -331,6 +570,10 @@ export async function POST(
         registrations,
       });
     }
+
+    /*
+      UNKNOWN ACTION
+    */
 
     return NextResponse.json(
       {

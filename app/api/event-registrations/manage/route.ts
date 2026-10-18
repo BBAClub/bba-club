@@ -135,6 +135,10 @@ const REGISTRATION_FIELDS = `
     capacity,
     price,
 
+    currency,
+    onlinePaymentsEnabled,
+
+
     registrationStatus
   }
 `;
@@ -192,6 +196,25 @@ function getEventPrice(
   }
 
   return event.price;
+}
+
+function getEventCurrency(
+  event?: PromotionEvent
+) {
+  return event?.currency === "EUR"
+    ? "EUR" as const
+    : "CZK" as const;
+}
+
+function eventUsesOnlinePayments(
+  event?: PromotionEvent
+) {
+  return (
+    paymentsEnabled() &&
+    event?.onlinePaymentsEnabled ===
+      true &&
+    getEventPrice(event) > 0
+  );
 }
 
 function paymentSatisfied(
@@ -886,7 +909,9 @@ export async function POST(
 
       if (
         eventPrice > 0 &&
-        paymentsEnabled() &&
+      eventUsesOnlinePayments(
+        registration.event
+      ) &&
         !paymentSatisfied(
           registration
         )
@@ -914,7 +939,9 @@ export async function POST(
 
       if (
         eventPrice > 0 &&
-        !paymentsEnabled() &&
+      !eventUsesOnlinePayments(
+        registration.event
+      ) &&
         registration
           .paymentStatus !==
           "paid"
@@ -937,7 +964,9 @@ export async function POST(
               eventPrice,
 
             paymentCurrency:
-              "CZK",
+              getEventCurrency(
+                registration.event
+              ),
           })
           .unset([
             "checkedInAt",
@@ -962,7 +991,9 @@ export async function POST(
 
           ...(
             eventPrice > 0 &&
-            !paymentsEnabled() &&
+      !eventUsesOnlinePayments(
+        registration.event
+      ) &&
             registration
               .paymentStatus !==
               "paid"
@@ -1041,7 +1072,9 @@ export async function POST(
 
       if (
         eventPrice > 0 &&
-        paymentsEnabled() &&
+      eventUsesOnlinePayments(
+        registration.event
+      ) &&
         !paymentSatisfied(
           registration
         )

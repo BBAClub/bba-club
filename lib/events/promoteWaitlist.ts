@@ -35,6 +35,13 @@ export type PromotionEvent = {
 
   price?: number;
 
+  currency?:
+    | "CZK"
+    | "EUR";
+
+  onlinePaymentsEnabled?: boolean;
+
+
   registrationStatus?:
     | "coming-soon"
     | "open"
@@ -90,7 +97,9 @@ type Registration = {
 
   paymentAmount?: number;
 
-  paymentCurrency?: string;
+  paymentCurrency?:
+    | "CZK"
+    | "EUR";
 };
 
 type PromoteWaitlistInput = {
@@ -140,6 +149,25 @@ function getEventPrice(
   return event.price;
 }
 
+function getEventCurrency(
+  event: PromotionEvent
+) {
+  return event.currency === "EUR"
+    ? "EUR" as const
+    : "CZK" as const;
+}
+
+function eventUsesOnlinePayments(
+  event: PromotionEvent
+) {
+  return (
+    paymentsEnabled() &&
+    event.onlinePaymentsEnabled ===
+      true &&
+    getEventPrice(event) > 0
+  );
+}
+
 function candidateNeedsOnlinePayment(
   registration:
     Registration,
@@ -153,8 +181,9 @@ function candidateNeedsOnlinePayment(
     );
 
   if (
-    price <= 0 ||
-    !paymentsEnabled()
+    !eventUsesOnlinePayments(
+      event
+    )
   ) {
     return false;
   }
@@ -403,7 +432,9 @@ async function promoteWithoutOnlinePayment(
 
   if (
     price > 0 &&
-    !paymentsEnabled() &&
+    !eventUsesOnlinePayments(
+      event
+    ) &&
     registration
       .paymentStatus !==
       "paid"
@@ -418,7 +449,9 @@ async function promoteWithoutOnlinePayment(
       price;
 
     paymentPatch.paymentCurrency =
-      "CZK";
+      getEventCurrency(
+        event
+      );
   }
 
   await writeClient
@@ -568,7 +601,9 @@ async function promoteWithComgate(
         price,
 
       paymentCurrency:
-        "CZK",
+      getEventCurrency(
+        event
+      ),
 
       paymentCreatedAt:
         paymentCreatedAt
@@ -627,10 +662,15 @@ async function promoteWithComgate(
     const payment =
       await createComgatePayment(
         {
-          amountCzk:
-            price,
+          amount:
+          price,
 
-          refId,
+        currency:
+          getEventCurrency(
+            event
+          ),
+
+        refId,
 
           email:
             registration.email,
@@ -691,8 +731,13 @@ async function promoteWithComgate(
 
           reservationExpiresAt,
 
-          amountCzk:
-            price,
+          amount:
+          price,
+
+        currency:
+          getEventCurrency(
+            event
+          ),
 
           firstName:
             registration.firstName,

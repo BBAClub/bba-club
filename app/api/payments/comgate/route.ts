@@ -19,6 +19,11 @@ import {
   sendEventRegistrationEmail,
 } from "@/lib/email/sendEventRegistrationEmail";
 
+import {
+  promoteWaitlist,
+  type PromotionEvent,
+} from "@/lib/events/promoteWaitlist";
+
 export const runtime =
   "nodejs";
 
@@ -80,21 +85,7 @@ type Registration = {
 
   email?: string;
 
-  event?: {
-    _id: string;
-
-    title?: string;
-
-    date?: string;
-
-    time?: string;
-
-    venue?: string;
-
-    location?: string;
-
-    address?: string;
-  };
+  event?: PromotionEvent;
 };
 
 function getString(
@@ -142,6 +133,27 @@ function getExpectedRefId(
   );
 }
 
+function getSiteOrigin(
+  request: Request
+) {
+  const configured =
+    process.env
+      .NEXT_PUBLIC_SITE_URL
+      ?.trim()
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  if (configured) {
+    return configured;
+  }
+
+  return new URL(
+    request.url
+  ).origin;
+}
+
 async function getRegistration(
   transId: string
 ) {
@@ -178,11 +190,22 @@ async function getRegistration(
         "event": event->{
           _id,
           title,
+
+          "slug":
+            slug.current,
+
           date,
           time,
+
           venue,
           location,
-          address
+          address,
+
+          capacity,
+          price,
+          currency,
+          onlinePaymentsEnabled,
+          registrationStatus
         }
       }
     `,
@@ -684,12 +707,72 @@ export async function POST(
         ])
         .commit();
 
+      /*
+        CANCELLED is also the final
+        state used when a Comgate
+        payment expires.
+
+        The seat is now free, so offer
+        it to the next waitlisted
+        attendee immediately.
+      */
+
+      let promotedCount = 0;
+
+      const event =
+        registration.event;
+
+      if (
+        event?._id
+      ) {
+        try {
+          const promoted =
+            await promoteWaitlist({
+              eventId:
+                event._id,
+
+              event,
+
+              siteOrigin:
+                getSiteOrigin(
+                  request
+                ),
+
+              excludeRegistrationId:
+                registration._id,
+            });
+
+          promotedCount =
+            promoted.length;
+        } catch (
+          promotionError
+        ) {
+          /*
+            Payment cancellation is
+            already safely recorded.
+
+            Promotion failure must not
+            make Comgate retry an
+            otherwise successfully
+            processed CANCELLED push.
+          */
+
+          console.error(
+            "Waitlist promotion after cancelled payment failed:",
+            promotionError
+          );
+        }
+      }
+
       return NextResponse.json({
         success:
           true,
 
         status:
           "cancelled",
+
+        promoted:
+          promotedCount,
       });
     }
 
@@ -878,12 +961,12 @@ export async function POST(
             !emailResult.sent
           ) {
             /*
-              Return 500 so Comgate
-              retries the push.
+              The payment is already
+              safely recorded as paid.
 
-              The payment itself is
-              already safely recorded
-              as paid.
+              Email delivery must not
+              make Comgate retry the
+              payment notification.
             */
 
             console.error(
@@ -891,16 +974,16 @@ export async function POST(
               registration._id
             );
 
-            return NextResponse.json(
-              {
-                error:
-                  "Confirmation email was not sent.",
-              },
-              {
-                status: 500,
-              }
-            );
-          }
+            await writeClient
+              .patch(
+                registration._id
+              )
+              .set({
+                emailDeliveryStatus:
+                  "failed",
+              })
+              .commit();
+          } else {
 
           const emailPatch:
             Record<
@@ -923,10 +1006,14 @@ export async function POST(
             .patch(
               registration._id
             )
-            .set(
-              emailPatch
-            )
+            .set({
+              ...emailPatch,
+
+              emailDeliveryStatus:
+                "sent",
+            })
             .commit();
+          }
         } catch (
           emailError
         ) {
@@ -935,15 +1022,24 @@ export async function POST(
             emailError
           );
 
-          return NextResponse.json(
-            {
-              error:
-                "Confirmation email failed.",
-            },
-            {
-              status: 500,
-            }
-          );
+          try {
+            await writeClient
+              .patch(
+                registration._id
+              )
+              .set({
+                emailDeliveryStatus:
+                  "failed",
+              })
+              .commit();
+          } catch (
+            emailStatusError
+          ) {
+            console.error(
+              "Could not record failed confirmation email status:",
+              emailStatusError
+            );
+          }
         }
       }
 

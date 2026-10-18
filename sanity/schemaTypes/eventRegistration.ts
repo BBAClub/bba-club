@@ -15,9 +15,15 @@ export const eventRegistrationType =
       "document",
 
     fields: [
+      /*
+        EVENT
+      */
+
       defineField({
         name: "event",
+
         title: "Event",
+
         type: "reference",
 
         to: [
@@ -30,9 +36,15 @@ export const eventRegistrationType =
           Rule.required(),
       }),
 
+      /*
+        REGISTRATION STATUS
+      */
+
       defineField({
         name: "status",
+
         title: "Status",
+
         type: "string",
 
         options: {
@@ -40,6 +52,7 @@ export const eventRegistrationType =
             {
               title:
                 "Pending payment",
+
               value:
                 "pending-payment",
             },
@@ -47,6 +60,7 @@ export const eventRegistrationType =
             {
               title:
                 "Confirmed",
+
               value:
                 "confirmed",
             },
@@ -54,6 +68,7 @@ export const eventRegistrationType =
             {
               title:
                 "Waitlist",
+
               value:
                 "waitlist",
             },
@@ -61,6 +76,7 @@ export const eventRegistrationType =
             {
               title:
                 "Cancelled",
+
               value:
                 "cancelled",
             },
@@ -68,6 +84,7 @@ export const eventRegistrationType =
             {
               title:
                 "Checked in",
+
               value:
                 "checked-in",
             },
@@ -102,25 +119,33 @@ export const eventRegistrationType =
           Rule.required(),
       }),
 
+      /*
+        ATTENDEE
+      */
+
       defineField({
-        name: "firstName",
+        name:
+          "firstName",
 
         title:
           "First Name",
 
-        type: "string",
+        type:
+          "string",
 
         validation: (Rule) =>
           Rule.required(),
       }),
 
       defineField({
-        name: "lastName",
+        name:
+          "lastName",
 
         title:
           "Last Name",
 
-        type: "string",
+        type:
+          "string",
 
         validation: (Rule) =>
           Rule.required(),
@@ -146,7 +171,8 @@ export const eventRegistrationType =
         title:
           "University / School",
 
-        type: "string",
+        type:
+          "string",
 
         description:
           "Optional. For example VŠE.",
@@ -165,6 +191,10 @@ export const eventRegistrationType =
         description:
           "Optional note from the attendee.",
       }),
+
+      /*
+        TICKET
+      */
 
       defineField({
         name:
@@ -201,6 +231,7 @@ export const eventRegistrationType =
             {
               title:
                 "Not required",
+
               value:
                 "not_required",
             },
@@ -208,6 +239,7 @@ export const eventRegistrationType =
             {
               title:
                 "Pay on site",
+
               value:
                 "pay_on_site",
             },
@@ -215,6 +247,7 @@ export const eventRegistrationType =
             {
               title:
                 "Pending",
+
               value:
                 "pending",
             },
@@ -222,6 +255,7 @@ export const eventRegistrationType =
             {
               title:
                 "Paid",
+
               value:
                 "paid",
             },
@@ -229,6 +263,7 @@ export const eventRegistrationType =
             {
               title:
                 "Failed",
+
               value:
                 "failed",
             },
@@ -236,6 +271,7 @@ export const eventRegistrationType =
             {
               title:
                 "Refunded",
+
               value:
                 "refunded",
             },
@@ -312,7 +348,7 @@ export const eventRegistrationType =
         readOnly: true,
 
         description:
-          "Amount charged in CZK. Stored as a snapshot of the event price.",
+          "Amount charged. Stored as a snapshot of the event price in the payment currency.",
       }),
 
       defineField({
@@ -324,6 +360,20 @@ export const eventRegistrationType =
 
         type:
           "string",
+
+        options: {
+          list: [
+            {
+              title: "CZK",
+              value: "CZK",
+            },
+
+            {
+              title: "EUR",
+              value: "EUR",
+            },
+          ],
+        },
 
         readOnly: true,
 
@@ -387,7 +437,7 @@ export const eventRegistrationType =
       }),
 
       /*
-        EMAIL INFO
+        EMAIL DELIVERY
       */
 
       defineField({
@@ -401,6 +451,9 @@ export const eventRegistrationType =
           "datetime",
 
         readOnly: true,
+
+        description:
+          "Time when the registration email was accepted for sending.",
       }),
 
       defineField({
@@ -414,6 +467,168 @@ export const eventRegistrationType =
           "string",
 
         readOnly: true,
+
+        description:
+          "Email identifier returned by the email provider.",
+      }),
+
+      defineField({
+        name:
+          "emailDeliveryStatus",
+
+        title:
+          "Email Delivery Status",
+
+        type:
+          "string",
+
+        options: {
+          list: [
+            {
+              title:
+                "Not sent",
+
+              value:
+                "not-sent",
+            },
+
+            {
+              title:
+                "Sent",
+
+              value:
+                "sent",
+            },
+
+            {
+              title:
+                "Delayed",
+
+              value:
+                "delayed",
+            },
+
+            {
+              title:
+                "Delivered",
+
+              value:
+                "delivered",
+            },
+
+            {
+              title:
+                "Bounced",
+
+              value:
+                "bounced",
+            },
+
+            {
+              title:
+                "Spam complaint",
+
+              value:
+                "complained",
+            },
+
+            {
+              title:
+                "Failed",
+
+              value:
+                "failed",
+            },
+          ],
+
+          layout:
+            "dropdown",
+        },
+
+        readOnly: true,
+
+        description:
+          "Latest known delivery state reported by the email provider.",
+      }),
+
+      defineField({
+        name:
+          "emailDeliveredAt",
+
+        title:
+          "Email Delivered At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Time when the email provider confirmed delivery.",
+      }),
+
+      defineField({
+        name:
+          "emailDelayedAt",
+
+        title:
+          "Email Delayed At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Time when the email provider reported a temporary delivery delay.",
+      }),
+
+      defineField({
+        name:
+          "emailBouncedAt",
+
+        title:
+          "Email Bounced At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Time when delivery failed because the receiving mail server rejected the email.",
+      }),
+
+      defineField({
+        name:
+          "emailComplainedAt",
+
+        title:
+          "Email Complaint At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Time when the recipient reported the email as spam.",
+      }),
+
+      defineField({
+        name:
+          "emailFailedAt",
+
+        title:
+          "Email Failed At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Time when sending or delivery failed.",
       }),
 
       /*
@@ -434,6 +649,10 @@ export const eventRegistrationType =
       }),
     ],
 
+    /*
+      SANITY LIST PREVIEW
+    */
+
     preview: {
       select: {
         firstName:
@@ -453,6 +672,15 @@ export const eventRegistrationType =
 
         paymentStatus:
           "paymentStatus",
+
+        emailDeliveryStatus:
+          "emailDeliveryStatus",
+
+        confirmationEmailSentAt:
+          "confirmationEmailSentAt",
+
+        emailBouncedAt:
+          "emailBouncedAt",
       },
 
       prepare({
@@ -462,6 +690,9 @@ export const eventRegistrationType =
         eventTitle,
         status,
         paymentStatus,
+        emailDeliveryStatus,
+        confirmationEmailSentAt,
+        emailBouncedAt,
       }) {
         const statusLabel =
           status ===
@@ -497,7 +728,44 @@ export const eventRegistrationType =
                   : paymentStatus ===
                       "refunded"
                     ? "Refunded"
-                    : undefined;
+                    : paymentStatus ===
+                        "not_required"
+                      ? "No payment"
+                      : undefined;
+
+        const resolvedEmailStatus =
+          emailDeliveryStatus ??
+          (
+            emailBouncedAt
+              ? "bounced"
+              : confirmationEmailSentAt
+                ? "sent"
+                : undefined
+          );
+
+        const emailLabel =
+          resolvedEmailStatus ===
+          "delivered"
+            ? "Email delivered"
+            : resolvedEmailStatus ===
+                "delayed"
+              ? "Email delayed"
+              : resolvedEmailStatus ===
+                  "bounced"
+                ? "⚠ Email bounced"
+                : resolvedEmailStatus ===
+                    "complained"
+                  ? "⚠ Spam complaint"
+                  : resolvedEmailStatus ===
+                      "failed"
+                    ? "⚠ Email failed"
+                    : resolvedEmailStatus ===
+                        "sent"
+                      ? "Email sent"
+                      : resolvedEmailStatus ===
+                          "not-sent"
+                        ? "Email not sent"
+                        : undefined;
 
         return {
           title:
@@ -509,6 +777,7 @@ export const eventRegistrationType =
             eventTitle,
             statusLabel,
             paymentLabel,
+            emailLabel,
             email,
           ]
             .filter(Boolean)

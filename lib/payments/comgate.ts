@@ -1,7 +1,25 @@
 import "server-only";
 
+export type ComgateCurrency =
+  | "CZK"
+  | "EUR";
+
 type CreateComgatePaymentInput = {
-  amountCzk: number;
+  /*
+    New generic interface.
+
+    amountCzk is temporarily kept
+    for backwards compatibility
+    with the current registration
+    API and can be removed once that
+    endpoint is migrated.
+  */
+
+  amount?: number;
+
+  amountCzk?: number;
+
+  currency?: ComgateCurrency;
 
   refId: string;
 
@@ -16,6 +34,16 @@ type CreateComgatePaymentInput = {
   cancelledUrl: string;
 
   pendingUrl: string;
+};
+
+type RefundComgatePaymentInput = {
+  transId: string;
+
+  amount: number;
+
+  currency: ComgateCurrency;
+
+  refId?: string;
 };
 
 type ComgateCreateResponse = {
@@ -34,20 +62,28 @@ type ComgateCancelResponse = {
   message: string;
 };
 
+type ComgateRefundResponse = {
+  code: number;
+
+  message: string;
+};
+
 export type ComgatePaymentStatus =
   | "PENDING"
   | "PAID"
   | "CANCELLED"
   | "AUTHORIZED";
 
-type ComgateStatusResponse = {
+export type ComgateStatusResponse = {
   code: number;
 
   message: string;
 
   test?: string;
 
-  price?: string;
+  price?:
+    | string
+    | number;
 
   curr?: string;
 
@@ -55,13 +91,21 @@ type ComgateStatusResponse = {
 
   refId?: string;
 
+  method?: string;
+
+  account?: string;
+
   email?: string;
 
   name?: string;
 
   transId?: string;
 
-  status?: ComgatePaymentStatus;
+  status?:
+    ComgatePaymentStatus;
+
+  paymentErrorReason?:
+    string;
 };
 
 const COMGATE_API_URL =
@@ -69,10 +113,14 @@ const COMGATE_API_URL =
 
 function getCredentials() {
   const merchant =
-    process.env.COMGATE_MERCHANT;
+    process.env
+      .COMGATE_MERCHANT
+      ?.trim();
 
   const secret =
-    process.env.COMGATE_SECRET;
+    process.env
+      .COMGATE_SECRET
+      ?.trim();
 
   if (
     !merchant ||
@@ -105,10 +153,13 @@ function getAuthorizationHeader() {
   return `Basic ${encoded}`;
 }
 
-function isTestMode() {
+export function isComgateTestMode() {
   /*
-    Unless explicitly set to false,
-    keep Comgate in test mode.
+    Fail safe.
+
+    Unless production mode is
+    explicitly enabled, every
+    transaction is created as test.
   */
 
   return (
@@ -118,35 +169,162 @@ function isTestMode() {
   );
 }
 
-function toHalere(
-  amountCzk: number
+function validCurrency(
+  value: unknown
+): value is ComgateCurrency {
+  return (
+    value === "CZK" ||
+    value === "EUR"
+  );
+}
+
+function toMinorUnits(
+  amount: number,
+  currency: ComgateCurrency
 ) {
   if (
     !Number.isFinite(
-      amountCzk
+      amount
     ) ||
-    amountCzk <= 0
+    amount <= 0
   ) {
     throw new Error(
       "Invalid payment amount."
     );
   }
 
-  return Math.round(
-    amountCzk * 100
+  /*
+    CZK and EUR both use two
+    decimal places in Comgate.
+
+    CZK:
+      150 CZK -> 15000 haléřů
+
+    EUR:
+      10 EUR -> 1000 cents
+  */
+
+  const result =
+    Math.round(
+      amount * 100
+    );
+
+  /*
+    Defensive currency reference.
+    If more currencies are ever
+    added, this function should be
+    reviewed first.
+  */
+
+  if (
+    currency !== "CZK" &&
+    currency !== "EUR"
+  ) {
+    throw new Error(
+      "Unsupported payment currency."
+    );
+  }
+
+  return result;
+}
+
+function resolveCreateAmount(
+  input:
+    CreateComgatePaymentInput
+) {
+  /*
+    New calls use amount +
+    currency.
+
+    Old calls still use amountCzk.
+  */
+
+  if (
+    typeof input.amount ===
+      "number"
+  ) {
+    return {
+      amount:
+        input.amount,
+
+      currency:
+        input.currency ??
+        "CZK",
+    };
+  }
+
+  if (
+    typeof input.amountCzk ===
+      "number"
+  ) {
+    return {
+      amount:
+        input.amountCzk,
+
+      currency:
+        "CZK" as const,
+    };
+  }
+
+  throw new Error(
+    "Missing payment amount."
   );
 }
 
-export async function createComgatePayment({
-  amountCzk,
-  refId,
-  email,
-  fullName,
-  eventTitle,
-  paidUrl,
-  cancelledUrl,
-  pendingUrl,
-}: CreateComgatePaymentInput) {
+function getSettlementAccount(
+  currency: ComgateCurrency
+) {
+  /*
+    Optional Comgate bank account
+    identifier.
+
+    These are NOT normal bank
+    account numbers.
+
+    If omitted, Comgate uses the
+    default account configured for
+    the shop.
+  */
+
+  const value =
+    currency === "EUR"
+      ? process.env
+          .COMGATE_ACCOUNT_EUR
+          ?.trim()
+      : process.env
+          .COMGATE_ACCOUNT_CZK
+          ?.trim();
+
+  return value || undefined;
+}
+
+export async function createComgatePayment(
+  input:
+    CreateComgatePaymentInput
+) {
+  const {
+    amount,
+    currency,
+  } =
+    resolveCreateAmount(
+      input
+    );
+
+  if (
+    !validCurrency(
+      currency
+    )
+  ) {
+    throw new Error(
+      "Unsupported payment currency."
+    );
+  }
+
+  const account =
+    getSettlementAccount(
+      currency
+    );
+
   const response =
     await fetch(
       `${COMGATE_API_URL}/payment.json`,
@@ -168,33 +346,43 @@ export async function createComgatePayment({
         body:
           JSON.stringify({
             test:
-              isTestMode(),
+              isComgateTestMode(),
 
             price:
-              toHalere(
-                amountCzk
+              toMinorUnits(
+                amount,
+                currency
               ),
 
             curr:
-              "CZK",
+              currency,
 
             label:
               "BBA Club ticket",
 
-            refId,
+            refId:
+              input.refId,
 
             method:
               "ALL",
 
-            email,
+            ...(account
+              ? {
+                  account,
+                }
+              : {}),
 
-            fullName,
+            email:
+              input.email,
+
+            fullName:
+              input.fullName,
 
             category:
               "OTHER",
 
             name:
-              eventTitle,
+              input.eventTitle,
 
             lang:
               "en",
@@ -203,22 +391,22 @@ export async function createComgatePayment({
               "30m",
 
             /*
-              Explicitly allow Apple Pay
-              and Google Pay for this
-              payment when enabled on
-              the Comgate account.
+              Comgate only displays
+              methods enabled for the
+              merchant account.
             */
+
             enableApplePayGooglePay:
               true,
 
             url_paid:
-              paidUrl,
+              input.paidUrl,
 
             url_cancelled:
-              cancelledUrl,
+              input.cancelledUrl,
 
             url_pending:
-              pendingUrl,
+              input.pendingUrl,
           }),
       }
     );
@@ -253,6 +441,10 @@ export async function createComgatePayment({
 
         message:
           data.message,
+
+        currency,
+
+        amount,
       }
     );
 
@@ -267,13 +459,22 @@ export async function createComgatePayment({
 
     redirectUrl:
       data.redirect,
+
+    amount,
+
+    currency,
   };
 }
 
 export async function getComgatePaymentStatus(
   transId: string
 ) {
-  if (!transId) {
+  const normalizedTransId =
+    transId.trim();
+
+  if (
+    !normalizedTransId
+  ) {
     throw new Error(
       "Missing Comgate transaction ID."
     );
@@ -282,7 +483,7 @@ export async function getComgatePaymentStatus(
   const response =
     await fetch(
       `${COMGATE_API_URL}/payment/transId/${encodeURIComponent(
-        transId
+        normalizedTransId
       )}.json`,
       {
         method:
@@ -331,7 +532,8 @@ export async function getComgatePaymentStatus(
         message:
           data.message,
 
-        transId,
+        transId:
+          normalizedTransId,
       }
     );
 
@@ -346,17 +548,24 @@ export async function getComgatePaymentStatus(
 /*
   CANCEL PENDING PAYMENT
 
-  Comgate only allows cancellation
-  while the payment is still PENDING.
+  A payment can only be cancelled
+  while Comgate still reports it
+  as PENDING.
 
-  After attempting the DELETE we
-  always verify the real state again.
+  After the DELETE request we
+  verify the authoritative state
+  again.
 */
 
 export async function cancelComgatePayment(
   transId: string
 ) {
-  if (!transId) {
+  const normalizedTransId =
+    transId.trim();
+
+  if (
+    !normalizedTransId
+  ) {
     throw new Error(
       "Missing Comgate transaction ID."
     );
@@ -365,7 +574,7 @@ export async function cancelComgatePayment(
   const response =
     await fetch(
       `${COMGATE_API_URL}/payment/transId/${encodeURIComponent(
-        transId
+        normalizedTransId
       )}.json`,
       {
         method:
@@ -385,18 +594,16 @@ export async function cancelComgatePayment(
     );
 
   /*
-    204 means the request was accepted
-    but Comgate returned no response
-    body.
+    HTTP 204 contains no body.
 
-    For a normal response, code 0 is
-    success.
+    Code 1400 commonly means that
+    the transaction can no longer
+    be changed to CANCELLED, for
+    example because it has already
+    become PAID.
 
-    Code 1400 means the payment could
-    not be switched to CANCELLED,
-    usually because it is no longer
-    PENDING. In that case we verify
-    its current status below.
+    In that situation the status
+    check below decides the result.
   */
 
   if (
@@ -431,7 +638,8 @@ export async function cancelComgatePayment(
           message:
             data.message,
 
-          transId,
+          transId:
+            normalizedTransId,
         }
       );
 
@@ -456,7 +664,8 @@ export async function cancelComgatePayment(
           message:
             data.message,
 
-          transId,
+          transId:
+            normalizedTransId,
         }
       );
 
@@ -466,14 +675,9 @@ export async function cancelComgatePayment(
     }
   }
 
-  /*
-    Verify the authoritative state
-    after the cancellation attempt.
-  */
-
   const payment =
     await getComgatePaymentStatus(
-      transId
+      normalizedTransId
     );
 
   return {
@@ -483,5 +687,166 @@ export async function cancelComgatePayment(
 
     status:
       payment.status,
+  };
+}
+
+/*
+  REFUND PAID PAYMENT
+
+  Supports both full and partial
+  refunds.
+
+  This is important for BBA Club
+  because a refund may be lower
+  than the original ticket price.
+*/
+
+export async function refundComgatePayment({
+  transId,
+  amount,
+  currency,
+  refId,
+}: RefundComgatePaymentInput) {
+  const normalizedTransId =
+    transId.trim();
+
+  if (
+    !normalizedTransId
+  ) {
+    throw new Error(
+      "Missing Comgate transaction ID."
+    );
+  }
+
+  if (
+    !validCurrency(
+      currency
+    )
+  ) {
+    throw new Error(
+      "Unsupported refund currency."
+    );
+  }
+
+  const response =
+    await fetch(
+      `${COMGATE_API_URL}/refund.json`,
+      {
+        method:
+          "POST",
+
+        headers: {
+          Authorization:
+            getAuthorizationHeader(),
+
+          "Content-Type":
+            "application/json",
+
+          Accept:
+            "application/json",
+        },
+
+        body:
+          JSON.stringify({
+            transId:
+              normalizedTransId,
+
+            amount:
+              toMinorUnits(
+                amount,
+                currency
+              ),
+
+            test:
+              isComgateTestMode(),
+
+            ...(refId
+              ? {
+                  refId,
+                }
+              : {}),
+          }),
+
+        cache:
+          "no-store",
+      }
+    );
+
+  /*
+    Comgate may acknowledge the
+    refund with HTTP 204 and no
+    response body.
+  */
+
+  if (
+    response.status ===
+    204
+  ) {
+    return {
+      refunded:
+        true,
+
+      amount,
+
+      currency,
+    };
+  }
+
+  let data:
+    ComgateRefundResponse;
+
+  try {
+    data =
+      (await response.json()) as
+        ComgateRefundResponse;
+  } catch {
+    throw new Error(
+      "Comgate returned an invalid refund response."
+    );
+  }
+
+  if (
+    !response.ok ||
+    data.code !== 0
+  ) {
+    console.error(
+      "Comgate refund failed:",
+      {
+        httpStatus:
+          response.status,
+
+        code:
+          data.code,
+
+        message:
+          data.message,
+
+        transId:
+          normalizedTransId,
+
+        amount,
+
+        currency,
+      }
+    );
+
+    throw new Error(
+      "Could not refund the payment."
+    );
+  }
+
+  return {
+    refunded:
+      true,
+
+    amount,
+
+    currency,
+
+    code:
+      data.code,
+
+    message:
+      data.message,
   };
 }
