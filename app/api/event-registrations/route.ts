@@ -53,6 +53,7 @@ type EventDocument = {
   capacity?: number;
 
   price?: number;
+  onlinePaymentsEnabled?: boolean;
 
   registrationStatus?:
     | "coming-soon"
@@ -394,6 +395,7 @@ export async function POST(
 
             capacity,
             price,
+            onlinePaymentsEnabled,
 
             registrationStatus,
             registrationDeadline
@@ -517,6 +519,7 @@ export async function POST(
 
     const onlinePaymentRequired =
       paymentsEnabled() &&
+      event.onlinePaymentsEnabled === true &&
       price > 0;
 
     /*
@@ -897,7 +900,7 @@ export async function POST(
           paymentStatus:
             price > 0
               ? (
-                  paymentsEnabled()
+                  onlinePaymentRequired
                     ? undefined
                     : "pay_on_site"
                 )
@@ -905,7 +908,7 @@ export async function POST(
 
           paymentProvider:
             price > 0 &&
-            !paymentsEnabled()
+            !onlinePaymentRequired
               ? "manual"
               : undefined,
 
