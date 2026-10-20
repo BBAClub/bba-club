@@ -5,7 +5,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-white/10 bg-[#050E17] px-6 py-12 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_1fr_1.2fr]">
           {/* BRAND */}
           <div>
             <Logo />
@@ -115,6 +115,32 @@ export default function Footer() {
                 Privacy Policy
               </Link>
             </div>
+          </div>
+
+          {/* PAYMENTS */}
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#71869A]">
+              Payments
+            </p>
+
+            <p className="mt-5 text-sm leading-6 text-[#A9B5C3]">
+              Secure online payments are processed by Comgate.
+            </p>
+
+            <a
+              href="https://www.comgate.eu/cs/platebni-brana"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 block w-fit opacity-80 transition hover:opacity-100"
+              aria-label="Comgate payment gateway"
+            >
+              <img
+                src="/payments/comgate-footer-dark.png"
+                alt="Visa, Mastercard and Comgate"
+                className="h-auto w-full max-w-[230px]"
+                loading="lazy"
+              />
+            </a>
           </div>
         </div>
 

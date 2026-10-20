@@ -70,7 +70,7 @@ export default function TermsPage() {
           </p>
 
           <p className="mt-6 text-sm text-[#53687D]">
-            Last updated: October 11, 2026
+            Last updated: October 20, 2026
           </p>
         </div>
       </section>
@@ -214,11 +214,68 @@ export default function TermsPage() {
             </p>
 
             <p>
-              Where online card payment is available, payment may be
-              processed through the Comgate payment gateway or another
-              payment provider identified during checkout. BBA Club
-              does not receive or store the participant&apos;s complete
-              payment card details.
+              Online payments are processed through the Comgate payment
+              gateway. The service provider, Comgate a.s., is a licensed
+              payment institution operating under the supervision of the
+              Czech National Bank. Payments made through the payment
+              gateway are secured and payment information is encrypted.
+            </p>
+
+            <p>
+              Available online payment methods may include bank payment
+              buttons and other payment methods displayed by the Comgate
+              payment gateway. After selecting a payment method, the
+              participant follows the instructions displayed by Comgate
+              and, where applicable, their bank.
+            </p>
+
+            <p>
+              More information is available on the{" "}
+              <a
+                href="https://www.comgate.eu/cs/platebni-brana"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#5790FF] transition hover:text-[#8EC5FF]"
+              >
+                Comgate payment gateway website
+              </a>
+              {" "}and in the{" "}
+              <a
+                href="https://help.comgate.eu/docs/bankovni-prevody"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[#5790FF] transition hover:text-[#8EC5FF]"
+              >
+                information about bank payments
+              </a>
+              .
+            </p>
+
+            <div className="rounded-[20px] border border-white/10 bg-[#0B1A29] p-5">
+              <p className="font-semibold text-white">
+                Comgate payment support
+              </p>
+
+              <p>Comgate a.s.</p>
+              <p>Gočárova třída 1754 / 48b</p>
+              <p>500 02 Hradec Králové</p>
+
+              <p className="mt-3">
+                E-mail:{" "}
+                <a
+                  href="mailto:platby-podpora@comgate.cz"
+                  className="text-[#5790FF] transition hover:text-[#8EC5FF]"
+                >
+                  platby-podpora@comgate.cz
+                </a>
+              </p>
+
+              <p>Tel.: +420 228 224 267</p>
+            </div>
+
+            <p>
+              BBA Club does not receive or store complete payment card
+              details or online-banking login credentials.
             </p>
 
             <p>
@@ -228,9 +285,9 @@ export default function TermsPage() {
             </p>
 
             <p>
-              If an online payment is not completed within the
-              applicable payment period, the reserved place may be
-              released and offered to another participant.
+              If an online payment is not completed within the applicable
+              payment period, the reserved place may be released and
+              offered to another participant.
             </p>
           </Section>
 
