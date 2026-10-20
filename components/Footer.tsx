@@ -136,7 +136,7 @@ export default function Footer() {
             >
               <img
                 src="/payments/comgate-footer-dark.png"
-                alt="Visa, Mastercard and Comgate"
+                alt="Comgate payment gateway"
                 className="h-auto w-full max-w-[230px]"
                 loading="lazy"
               />

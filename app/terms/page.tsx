@@ -299,6 +299,13 @@ export default function TermsPage() {
             </p>
 
             <p>
+              Cancelling a paid registration does not automatically
+              initiate a refund. Refund eligibility is reviewed
+              individually by BBA Club and any eligible refund is
+              processed manually.
+            </p>
+
+            <p>
               For a paid event, a cancellation made more than 72 hours
               before the scheduled start of the event is eligible for
               a refund of the ticket price less a cancellation
@@ -312,9 +319,9 @@ export default function TermsPage() {
 
             <p>
               However, if the released place is subsequently filled by
-              another participant from the waitlist, BBA Club may
-              provide a refund of the ticket price less the 5 CZK
-              cancellation administration fee.
+              another participant from the waitlist, BBA Club may provide
+              a refund of the ticket price less the 5 CZK cancellation
+              administration fee.
             </p>
 
             <p>
@@ -326,24 +333,42 @@ export default function TermsPage() {
               A participant who does not attend the event without
               cancelling the registration is not entitled to a refund.
             </p>
+
+            <p>
+              Participants who believe they are eligible for a refund
+              should contact BBA Club at{" "}
+              <a
+                href="mailto:bba.club@vse.cz"
+                className="text-[#5790FF] transition hover:text-[#8EC5FF]"
+              >
+                bba.club@vse.cz
+              </a>
+              {" "}and include their name, registration email and event
+              name.
+            </p>
           </Section>
 
           <Section number="07" title="Refunds">
             <p>
+              Refunds are currently reviewed and processed individually
+              by BBA Club rather than being issued automatically when a
+              registration is cancelled.
+            </p>
+
+            <p>
               Eligible refunds for online payments will normally be
-              returned using the same payment method used for the
-              original transaction.
+              returned through the Comgate payment gateway using the
+              original payment transaction where possible.
             </p>
 
             <p>
-              Processing time may depend on the payment provider and
-              the participant&apos;s bank or card issuer.
+              Processing time may depend on Comgate, the participant&apos;s
+              bank or card issuer and the payment method originally used.
             </p>
 
             <p>
-              A registration for which payment has not yet been
-              completed may be cancelled without a refund being
-              necessary.
+              A registration for which payment has not yet been completed
+              may be cancelled without a refund being necessary.
             </p>
 
             <p>
