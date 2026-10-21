@@ -8,6 +8,10 @@ import {
   createCancellationToken,
 } from "@/lib/events/cancellationToken";
 
+import {
+  createPayOnSiteToken,
+} from "@/lib/events/payOnSiteToken";
+
 type SendEventRegistrationEmailProps = {
   registrationId: string;
 
@@ -1364,6 +1368,361 @@ BBA Club
   return {
     sent: true as const,
 
+    emailId:
+      data?.id,
+  };
+}
+type SendEventPaymentFailedEmailProps = {
+  registrationId: string;
+  paymentTransactionId: string;
+
+  amount: number;
+  currency: PaymentCurrency;
+
+  firstName: string;
+  email: string;
+
+  eventTitle: string;
+
+  date?: string;
+  time?: string;
+
+  venue?: string;
+  location?: string;
+  address?: string;
+};
+
+export async function sendEventPaymentFailedEmail({
+  registrationId,
+  paymentTransactionId,
+  amount,
+  currency,
+  firstName,
+  email,
+  eventTitle,
+  date,
+  time,
+  venue,
+  location,
+  address,
+}: SendEventPaymentFailedEmailProps) {
+  const resendConfig =
+    getResendConfig();
+
+  if (!resendConfig) {
+    return {
+      sent: false as const,
+      reason:
+        "not-configured" as const,
+    };
+  }
+
+  const siteUrl =
+    process.env
+      .NEXT_PUBLIC_SITE_URL
+      ?.trim()
+      .replace(
+        /\/+$/,
+        ""
+      );
+
+  if (!siteUrl) {
+    console.error(
+      "Payment failed email skipped: missing NEXT_PUBLIC_SITE_URL."
+    );
+
+    return {
+      sent: false as const,
+      reason:
+        "not-configured" as const,
+    };
+  }
+
+  const {
+    resend,
+    from,
+  } = resendConfig;
+
+  const expiresAt =
+    new Date(
+      Date.now() +
+        7 * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+  const token =
+    createPayOnSiteToken(
+      registrationId,
+      paymentTransactionId,
+      expiresAt
+    );
+
+  const params =
+    new URLSearchParams({
+      id:
+        registrationId,
+
+      transaction:
+        paymentTransactionId,
+
+      expires:
+        expiresAt,
+
+      token,
+    });
+
+  const fallbackUrl =
+    `${siteUrl}/events/pay-on-site?${params.toString()}`;
+
+  const safeFirstName =
+    escapeHtml(
+      firstName
+    );
+
+  const safeTitle =
+    escapeHtml(
+      eventTitle
+    );
+
+  const safeFallbackUrl =
+    escapeHtml(
+      fallbackUrl
+    );
+
+  const formattedPrice =
+    formatPrice(
+      amount,
+      currency
+    );
+
+  const eventInfo =
+    createEventInfoHtml({
+      date,
+      time,
+      venue,
+      location,
+      address,
+    });
+
+  const html = `
+    <!doctype html>
+
+    <html>
+      <body style="
+        margin: 0;
+        padding: 0;
+        background: #071422;
+        font-family: Arial, Helvetica, sans-serif;
+      ">
+        <div style="
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 40px 20px;
+        ">
+          <div style="
+            margin-bottom: 28px;
+            color: #F6F8FB;
+            font-size: 20px;
+            font-weight: 700;
+          ">
+            BBA Club
+          </div>
+
+          <div style="
+            padding: 32px;
+            background: #0B1A29;
+            border: 1px solid #1B3045;
+            border-radius: 20px;
+          ">
+            <div style="
+              color: #F6C453;
+              font-size: 11px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: 0.12em;
+            ">
+              Payment not completed
+            </div>
+
+            <h1 style="
+              margin: 14px 0 0;
+              color: #F6F8FB;
+              font-size: 28px;
+              line-height: 1.2;
+            ">
+              Your payment didn't go through.
+            </h1>
+
+            <p style="
+              margin: 18px 0 0;
+              color: #A9B5C3;
+              font-size: 15px;
+              line-height: 1.7;
+            ">
+              Hi ${safeFirstName},
+            </p>
+
+            <p style="
+              margin: 8px 0 0;
+              color: #A9B5C3;
+              font-size: 15px;
+              line-height: 1.7;
+            ">
+              Your online payment for
+              ${safeTitle}
+              was not completed.
+            </p>
+
+            <div style="
+              margin-top: 26px;
+              padding-top: 22px;
+              border-top: 1px solid #1B3045;
+            ">
+              <table
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                style="font-size: 14px;"
+              >
+                ${eventInfo}
+
+                <tr>
+                  <td style="
+                    padding: 7px 0;
+                    color: #71869A;
+                  ">
+                    Price
+                  </td>
+
+                  <td style="
+                    padding: 7px 0;
+                    text-align: right;
+                    color: #F6F8FB;
+                    font-weight: 600;
+                  ">
+                    ${escapeHtml(
+                      formattedPrice
+                    )}
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="
+              margin-top: 26px;
+              padding: 22px;
+              background: #071422;
+              border: 1px solid #1B3045;
+              border-radius: 16px;
+              text-align: center;
+            ">
+              <p style="
+                margin: 0;
+                color: #A9B5C3;
+                font-size: 14px;
+                line-height: 1.6;
+              ">
+                If online payment is not possible,
+                you can request to keep your spot
+                and pay at the venue.
+              </p>
+
+              <a
+                href="${safeFallbackUrl}"
+                style="
+                  display: inline-block;
+                  margin-top: 20px;
+                  padding: 14px 24px;
+                  background: #0057FF;
+                  color: #FFFFFF;
+                  font-size: 14px;
+                  font-weight: 700;
+                  text-decoration: none;
+                  border-radius: 10px;
+                "
+              >
+                Confirm attendance & pay at the venue
+              </a>
+
+              <p style="
+                margin: 16px 0 0;
+                color: #53687D;
+                font-size: 11px;
+                line-height: 1.6;
+              ">
+                Your place is not confirmed until
+                you complete this step.
+                Availability will be checked again.
+              </p>
+            </div>
+          </div>
+
+          <p style="
+            margin: 24px 0 0;
+            color: #53687D;
+            font-size: 11px;
+            text-align: center;
+          ">
+            BBA Club · Prague
+          </p>
+        </div>
+      </body>
+    </html>
+  `;
+
+  const text = `
+Hi ${firstName},
+
+Your online payment for ${eventTitle} was not completed.
+
+Price: ${formattedPrice}
+
+If online payment is not possible, you can request to keep your spot and pay at the venue:
+
+${fallbackUrl}
+
+Your place is not confirmed until you complete this step. Availability will be checked again.
+
+BBA Club
+  `.trim();
+
+  const {
+    data,
+    error,
+  } =
+    await resend.emails.send(
+      {
+        from,
+        to:
+          email,
+
+        subject:
+          `Payment not completed for ${eventTitle}`,
+
+        html,
+        text,
+      },
+      {
+        idempotencyKey:
+          `event-payment-failed/${registrationId}/${paymentTransactionId}`,
+      }
+    );
+
+  if (error) {
+    console.error(
+      "Payment failed email error:",
+      error
+    );
+
+    return {
+      sent: false as const,
+      reason:
+        "provider-error" as const,
+      error,
+    };
+  }
+
+  return {
+    sent: true as const,
     emailId:
       data?.id,
   };

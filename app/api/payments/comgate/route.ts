@@ -16,6 +16,7 @@ import {
 } from "@/lib/payments/comgate";
 
 import {
+  sendEventPaymentFailedEmail,
   sendEventRegistrationEmail,
 } from "@/lib/email/sendEventRegistrationEmail";
 
@@ -721,6 +722,62 @@ export async function POST(
 
       const event =
         registration.event;
+
+      if (
+        registration.email &&
+        registration.firstName &&
+        registration.paymentTransactionId &&
+        event?.title
+      ) {
+        try {
+          await sendEventPaymentFailedEmail({
+            registrationId:
+              registration._id,
+
+            paymentTransactionId:
+              registration.paymentTransactionId,
+
+            amount:
+              registration.paymentAmount ??
+              event.price ??
+              0,
+
+            currency:
+              registration.paymentCurrency === "EUR"
+                ? "EUR"
+                : "CZK",
+
+            firstName:
+              registration.firstName,
+
+            email:
+              registration.email,
+
+            eventTitle:
+              event.title,
+
+            date:
+              event.date,
+
+            time:
+              event.time,
+
+            venue:
+              event.venue,
+
+            location:
+              event.location,
+
+            address:
+              event.address,
+          });
+        } catch (emailError) {
+          console.error(
+            "Payment failed email could not be sent:",
+            emailError
+          );
+        }
+      }
 
       if (
         event?._id

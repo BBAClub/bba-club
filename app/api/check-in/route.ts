@@ -6,10 +6,19 @@ import { isAdminAuthenticated } from "@/lib/admin/auth";
 export const runtime = "nodejs";
 
 type RegistrationStatus =
+  | "pending-payment"
   | "confirmed"
   | "waitlist"
   | "cancelled"
   | "checked-in";
+
+type PaymentStatus =
+  | "not_required"
+  | "pay_on_site"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
 
 type Registration = {
   _id: string;
@@ -19,6 +28,10 @@ type Registration = {
   email?: string;
 
   status?: RegistrationStatus;
+
+  paymentStatus?: PaymentStatus;
+  paymentAmount?: number;
+  paymentCurrency?: string;
 
   ticketCode?: string;
 
@@ -44,6 +57,8 @@ type CheckInRequest = {
 
   registrationId?: unknown;
 
+  paymentCollected?: unknown;
+
   query?: unknown;
 };
 
@@ -55,6 +70,10 @@ const REGISTRATION_FIELDS = `
   email,
 
   status,
+
+  paymentStatus,
+  paymentAmount,
+  paymentCurrency,
 
   ticketCode,
 
@@ -395,6 +414,31 @@ export async function POST(
       );
     }
 
+    const paymentCollected =
+      body.paymentCollected ===
+      true;
+
+    if (
+      registration.paymentStatus ===
+        "pay_on_site" &&
+      !paymentCollected
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Payment must be collected at the venue.",
+
+          code:
+            "PAY_ON_SITE",
+
+          registration,
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
     const writeClient =
       client.withConfig({
         token,
@@ -411,6 +455,14 @@ export async function POST(
       .set({
         status: "checked-in",
         checkedInAt,
+        ...(registration.paymentStatus === "pay_on_site" &&
+        paymentCollected
+          ? {
+              paymentStatus: "paid",
+              paymentProvider: "manual",
+              paidAt: checkedInAt,
+            }
+          : {}),
       })
       .commit();
 
@@ -427,6 +479,13 @@ export async function POST(
           "checked-in" as const,
 
         checkedInAt,
+
+        ...(registration.paymentStatus === "pay_on_site" &&
+        paymentCollected
+          ? {
+              paymentStatus: "paid" as const,
+            }
+          : {}),
       },
     });
   } catch (error) {

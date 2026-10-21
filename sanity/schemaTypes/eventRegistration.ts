@@ -436,6 +436,22 @@ export const eventRegistrationType =
         readOnly: true,
       }),
 
+      defineField({
+        name:
+          "payOnSiteConfirmedAt",
+
+        title:
+          "Pay On Site Confirmed At",
+
+        type:
+          "datetime",
+
+        readOnly: true,
+
+        description:
+          "Time when the attendee explicitly confirmed the fallback option to pay at the venue.",
+      }),
+
       /*
         EMAIL DELIVERY
       */

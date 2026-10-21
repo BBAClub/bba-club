@@ -24,6 +24,17 @@ type Registration = {
 
   status?: RegistrationStatus;
 
+  paymentStatus?:
+    | "not_required"
+    | "pay_on_site"
+    | "pending"
+    | "paid"
+    | "failed"
+    | "refunded";
+
+  paymentAmount?: number;
+  paymentCurrency?: string;
+
   checkedInAt?: string;
 
   event?: {
@@ -53,6 +64,7 @@ type ScanResult = {
   type:
     | "success"
     | "already"
+    | "payment"
     | "error";
 
   message: string;
@@ -262,6 +274,23 @@ export default function CheckInClient() {
             data.registration,
         });
       }
+
+      return;
+    }
+
+    if (
+      data.code === "PAY_ON_SITE" &&
+      data.registration
+    ) {
+      setResult({
+        type: "payment",
+
+        message:
+          "Collect payment before check-in.",
+
+        registration:
+          data.registration,
+      });
 
       return;
     }
@@ -511,6 +540,75 @@ export default function CheckInClient() {
         return;
       }
 
+      if (
+        data.code === "PAY_ON_SITE" &&
+        data.registration
+      ) {
+        setResult({
+          type: "payment",
+
+          message:
+            "Collect payment before check-in.",
+
+          registration:
+            data.registration,
+        });
+
+        return;
+      }
+
+      setResult({
+        type: "error",
+
+        message:
+          data.error ??
+          "Check-in failed.",
+
+        registration:
+          data.registration,
+      });
+    } finally {
+      setManualProcessing(
+        null
+      );
+    }
+  }
+
+  async function collectPaymentAndCheckIn(
+    registrationId: string
+  ) {
+    setManualProcessing(
+      registrationId
+    );
+
+    try {
+      const {
+        response,
+        data,
+      } =
+        await callApi({
+          action: "check-in",
+          registrationId,
+          paymentCollected: true,
+        });
+
+      if (
+        response.ok &&
+        data.registration
+      ) {
+        setResult({
+          type: "success",
+
+          message:
+            "Payment collected and attendee checked in.",
+
+          registration:
+            data.registration,
+        });
+
+        return;
+      }
+
       setResult({
         type: "error",
 
@@ -613,7 +711,10 @@ export default function CheckInClient() {
               : result.type ===
                   "already"
                 ? "border-[#8EC5FF]/30 bg-[#0057FF]/10"
-                : "border-red-400/30 bg-red-400/10"
+                : result.type ===
+                    "payment"
+                  ? "border-amber-400/30 bg-amber-400/10"
+                  : "border-red-400/30 bg-red-400/10"
           }`}
         >
           <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-70">
@@ -623,7 +724,10 @@ export default function CheckInClient() {
               : result.type ===
                   "already"
                 ? "Already checked in"
-                : "Check-in blocked"}
+                : result.type ===
+                    "payment"
+                  ? "PAY ON SITE"
+                  : "Check-in blocked"}
           </p>
 
           <h2 className="mt-2 text-2xl font-bold">
@@ -649,6 +753,51 @@ export default function CheckInClient() {
                     .email
                 }
               </p>
+
+              {(result.type === "success" ||
+                result.type === "already") &&
+                result.registration.paymentStatus === "paid" && (
+                  <div className="mt-5 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                      ✓ PAID
+                    </p>
+                  </div>
+                )}
+
+              {result.type ===
+                "payment" && (
+                <div className="mt-5 rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200">
+                    Collect at the venue
+                  </p>
+
+                  <p className="mt-2 text-3xl font-bold text-amber-100">
+                    {result.registration.paymentAmount ?? 0}{" "}
+                    {result.registration.paymentCurrency === "EUR"
+                      ? "€"
+                      : "Kč"}
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={
+                      manualProcessing ===
+                      result.registration._id
+                    }
+                    onClick={() =>
+                      void collectPaymentAndCheckIn(
+                        result.registration!._id
+                      )
+                    }
+                    className="mt-4 w-full rounded-xl bg-amber-300 px-5 py-3.5 text-sm font-bold text-[#071422] transition hover:bg-amber-200 disabled:opacity-60"
+                  >
+                    {manualProcessing ===
+                    result.registration._id
+                      ? "Checking in..."
+                      : "Payment collected — Check in"}
+                  </button>
+                </div>
+              )}
 
               {result.type ===
                 "error" && (
