@@ -16,6 +16,14 @@ type RegistrationStatus =
   | "cancelled"
   | "checked-in";
 
+type PaymentStatus =
+  | "not_required"
+  | "pay_on_site"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
+
 type AdminAction =
   | "confirm"
   | "waitlist"
@@ -71,6 +79,9 @@ type Registration = {
 
   status?:
     RegistrationStatus;
+
+  paymentStatus?:
+    PaymentStatus;
 
   registeredAt?: string;
   checkedInAt?: string;
@@ -224,6 +235,56 @@ function statusClass(
 
     case "cancelled":
       return "border-red-400/20 bg-red-400/10 text-red-200";
+
+    default:
+      return "border-white/10 bg-white/5 text-[#8EA0B3]";
+  }
+}
+
+function paymentLabel(
+  status?:
+    PaymentStatus
+) {
+  switch (status) {
+    case "paid":
+      return "Paid";
+
+    case "pay_on_site":
+      return "Pay on site";
+
+    case "pending":
+      return "Payment pending";
+
+    case "failed":
+      return "Payment failed";
+
+    case "refunded":
+      return "Refunded";
+
+    default:
+      return null;
+  }
+}
+
+function paymentClass(
+  status?:
+    PaymentStatus
+) {
+  switch (status) {
+    case "paid":
+      return "border-emerald-400/30 bg-emerald-400/10 text-emerald-200";
+
+    case "pay_on_site":
+      return "border-amber-400/30 bg-amber-400/10 text-amber-200";
+
+    case "pending":
+      return "border-yellow-400/30 bg-yellow-400/10 text-yellow-200";
+
+    case "failed":
+      return "border-red-400/30 bg-red-400/10 text-red-200";
+
+    case "refunded":
+      return "border-violet-400/30 bg-violet-400/10 text-violet-200";
 
     default:
       return "border-white/10 bg-white/5 text-[#8EA0B3]";
@@ -1456,15 +1517,31 @@ export default function EventDashboardClient() {
                                   </p>
                                 </div>
 
-                                <span
-                                  className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${statusClass(
-                                    registration.status
-                                  )}`}
-                                >
-                                  {statusLabel(
-                                    registration.status
+                                <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                                  <span
+                                    className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${statusClass(
+                                      registration.status
+                                    )}`}
+                                  >
+                                    {statusLabel(
+                                      registration.status
+                                    )}
+                                  </span>
+
+                                  {paymentLabel(
+                                    registration.paymentStatus
+                                  ) && (
+                                    <span
+                                      className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${paymentClass(
+                                        registration.paymentStatus
+                                      )}`}
+                                    >
+                                      {paymentLabel(
+                                        registration.paymentStatus
+                                      )}
+                                    </span>
                                   )}
-                                </span>
+                                </div>
                               </div>
 
                               {registration.university && (
@@ -1566,15 +1643,31 @@ export default function EventDashboardClient() {
                                   </td>
 
                                   <td className="px-3 py-4">
-                                    <span
-                                      className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${statusClass(
-                                        registration.status
-                                      )}`}
-                                    >
-                                      {statusLabel(
-                                        registration.status
+                                    <div className="flex flex-wrap gap-2">
+                                      <span
+                                        className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${statusClass(
+                                          registration.status
+                                        )}`}
+                                      >
+                                        {statusLabel(
+                                          registration.status
+                                        )}
+                                      </span>
+
+                                      {paymentLabel(
+                                        registration.paymentStatus
+                                      ) && (
+                                        <span
+                                          className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${paymentClass(
+                                            registration.paymentStatus
+                                          )}`}
+                                        >
+                                          {paymentLabel(
+                                            registration.paymentStatus
+                                          )}
+                                        </span>
                                       )}
-                                    </span>
+                                    </div>
                                   </td>
 
                                   <td className="px-3 py-4 text-xs text-[#71869A]">
@@ -1688,15 +1781,31 @@ export default function EventDashboardClient() {
                   Status
                 </span>
 
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${statusClass(
-                    selectedRegistration.status
-                  )}`}
-                >
-                  {statusLabel(
-                    selectedRegistration.status
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${statusClass(
+                      selectedRegistration.status
+                    )}`}
+                  >
+                    {statusLabel(
+                      selectedRegistration.status
+                    )}
+                  </span>
+
+                  {paymentLabel(
+                    selectedRegistration.paymentStatus
+                  ) && (
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] ${paymentClass(
+                        selectedRegistration.paymentStatus
+                      )}`}
+                    >
+                      {paymentLabel(
+                        selectedRegistration.paymentStatus
+                      )}
+                    </span>
                   )}
-                </span>
+                </div>
               </div>
 
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
