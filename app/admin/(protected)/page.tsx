@@ -22,7 +22,7 @@ const quickActions = [
     title: "Add place",
     description:
       "Add a new place to Explore Prague.",
-    href: "/admin/places",
+    href: "/admin/places/new",
     symbol: "⌖",
   },
   {
@@ -54,7 +54,7 @@ const sections = [
     description:
       "Manage Explore Prague places, partners and promo codes.",
     href: "/admin/places",
-    status: "Coming soon",
+    status: "Available",
   },
   {
     title: "Study",
@@ -219,8 +219,8 @@ export default function AdminDashboardPage() {
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-[#8EA0B3]">
-            Events are already connected. Next we will
-            gradually add registrations, Places, Study Hub,
+            Events, registrations and Places are already
+            connected. Next we will gradually add Study Hub,
             Tasks, Wiki, communications, payments and team
             management.
           </p>
