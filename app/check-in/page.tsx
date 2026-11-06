@@ -16,7 +16,7 @@ export const dynamic =
 
 export default async function CheckInPage() {
   const authenticated =
-    await isAdminAuthenticated();
+    await isAdminAuthenticated("checkin");
 
   if (!authenticated) {
     redirect(

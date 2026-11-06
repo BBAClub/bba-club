@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { canAccess, permissionForPath, type AdminAccount } from "@/lib/admin/permissions";
 
 import {
   usePathname,
@@ -64,6 +65,9 @@ const navigation = [
   },
 ];
 
+navigation.push({ href: "/check-in", label: "Check-in", icon: "▣" });
+navigation.push({ href: "/admin/users", label: "Access & accounts", icon: "♙" });
+
 function isActivePath(
   pathname: string,
   href: string
@@ -80,14 +84,19 @@ function isActivePath(
   );
 }
 
-export default function AdminSidebarNav() {
+export default function AdminSidebarNav({ account }: { account?: AdminAccount | null }) {
+  const visibleNavigation = navigation.filter((item) => {
+    const permission = permissionForPath(item.href);
+    if (permission === "users") return account?.role === "administrator";
+    return !account || canAccess(account, permission);
+  });
   const pathname =
     usePathname();
 
   return (
     <>
       <nav className="flex-1 space-y-1 px-3 py-5">
-        {navigation.map(
+        {visibleNavigation.map(
           (item) => {
             const active =
               isActivePath(
@@ -134,7 +143,7 @@ export default function AdminSidebarNav() {
 
       <div className="overflow-x-auto border-t border-white/5 px-4 py-2 lg:hidden">
         <nav className="flex min-w-max gap-1">
-          {navigation.map(
+          {visibleNavigation.map(
             (item) => {
               const active =
                 isActivePath(

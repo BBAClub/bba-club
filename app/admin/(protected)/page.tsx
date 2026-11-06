@@ -1,3 +1,5 @@
+import { currentAccount } from "@/lib/admin/accounts";
+import { canAccess, permissionForPath } from "@/lib/admin/permissions";
 import Link from "next/link";
 
 export const dynamic =
@@ -15,7 +17,7 @@ const quickActions = [
     title: "Manage registrations",
     description:
       "View attendees, waitlists and check-in.",
-    href: "/admin/events",
+    href: "/admin/registrations",
     symbol: "◎",
   },
   {
@@ -93,9 +95,17 @@ const sections = [
   },
 ];
 
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  const account = await currentAccount();
+  const visible = (href: string) => {
+    const permission = permissionForPath(href);
+    return !account || (permission !== "users" && canAccess(account, permission));
+  };
   return (
     <div>
+      {account && <p className="mb-5 text-sm text-[#A9B5C3]">Signed in as {account.name} · {account.email}{account.role === "administrator" ? " · Administrator" : ""}</p>}
+      {account?.role === "administrator" && <Link href="/admin/users" className="mb-5 inline-block rounded-xl bg-[#0057FF] px-4 py-3 text-sm font-semibold">Manage accounts & access</Link>}
+      {account?.role === "member" && account.permissions.length === 0 && <p className="mb-5 rounded-xl border border-white/10 p-4 text-sm text-[#A9B5C3]">Your account is approved. Ask an administrator to assign access to the sections you need.</p>}
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8EC5FF]">
@@ -135,7 +145,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {quickActions.map(
+          {quickActions.filter((item) => visible(item.href)).map(
             (action) => (
               <Link
                 key={action.title}
@@ -171,7 +181,7 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {sections.map(
+          {sections.filter((item) => visible(item.href)).map(
             (section) => (
               <Link
                 key={section.title}

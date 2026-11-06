@@ -1,3 +1,5 @@
+import { accountsEnabled, currentAccount } from "@/lib/admin/accounts";
+import AdminSignOut from "@/components/AdminSignOut";
 import Link from "next/link";
 
 import {
@@ -18,6 +20,8 @@ export default async function AdminLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const account = await currentAccount();
+  if (accountsEnabled() && account && account.status !== "active") redirect("/admin/account");
   const authenticated =
     await isAdminAuthenticated();
 
@@ -47,7 +51,7 @@ export default async function AdminLayout({
             </p>
           </div>
 
-          <AdminSidebarNav />
+          <AdminSidebarNav account={account} />
 
           <div className="border-t border-white/10 px-6 py-5">
             <p className="text-xs text-[#53687D]">
@@ -69,6 +73,9 @@ export default async function AdminLayout({
               </div>
 
               <div className="flex items-center gap-3">
+                {account && <span className="hidden text-xs text-[#A9B5C3] sm:inline">{account.name}</span>}
+                <Link href="/admin/reset-password" className="text-xs text-[#8EC5FF]">Password</Link>
+                <AdminSignOut />
                 <Link
                   href="/"
                   target="_blank"
@@ -80,7 +87,7 @@ export default async function AdminLayout({
             </div>
 
             <div className="lg:hidden [&>nav]:hidden">
-              <AdminSidebarNav />
+              <AdminSidebarNav account={account} />
             </div>
           </header>
 

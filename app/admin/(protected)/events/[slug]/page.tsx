@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
 import {
@@ -173,6 +174,7 @@ export default async function EditEventPage({
       slug: string;
     }>;
 }) {
+  await requireAdminPermission("events");
   const {
     slug,
   } =

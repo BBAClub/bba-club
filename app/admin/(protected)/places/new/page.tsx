@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
 import AdminPlaceForm from "@/components/AdminPlaceForm";
@@ -5,7 +6,8 @@ import AdminPlaceForm from "@/components/AdminPlaceForm";
 export const dynamic =
   "force-dynamic";
 
-export default function NewPlacePage() {
+export default async function NewPlacePage() {
+  await requireAdminPermission("places");
   return (
     <div>
       <div className="mb-8">

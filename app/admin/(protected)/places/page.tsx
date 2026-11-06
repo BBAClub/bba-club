@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
 import AdminPlacesList, {
@@ -30,6 +31,7 @@ const ADMIN_PLACES_QUERY = `
 `;
 
 export default async function PlacesPage() {
+  await requireAdminPermission("places");
   const places =
     await client.fetch<
       AdminPlaceListItem[]

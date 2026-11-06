@@ -30,7 +30,7 @@ export async function GET(
 ) {
   try {
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("study");
 
     if (!authenticated) {
       return NextResponse.json(

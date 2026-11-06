@@ -179,7 +179,7 @@ export async function PATCH(
     */
 
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("events");
 
     if (!authenticated) {
       return NextResponse.json(

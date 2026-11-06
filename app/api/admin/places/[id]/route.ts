@@ -61,7 +61,7 @@ function getNumber(
 
 async function getAuth() {
   const authenticated =
-    await isAdminAuthenticated();
+    await isAdminAuthenticated("places");
 
   if (!authenticated) {
     return {

@@ -758,7 +758,7 @@ export async function POST(
 ) {
   try {
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("registrations");
 
     if (!authenticated) {
       return NextResponse.json(

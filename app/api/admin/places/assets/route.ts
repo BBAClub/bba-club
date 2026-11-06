@@ -32,7 +32,7 @@ export async function POST(
     */
 
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("places");
 
     if (!authenticated) {
       return NextResponse.json(

@@ -1,3 +1,4 @@
+import { accountsEnabled, currentAccount } from "@/lib/admin/accounts";
 import {
   Suspense,
 } from "react";
@@ -19,6 +20,8 @@ export const dynamic =
   "force-dynamic";
 
 export default async function AdminLoginPage() {
+  const account = await currentAccount();
+  if (account) redirect(account.status === "active" ? "/admin" : "/admin/account");
   const authenticated =
     await isAdminAuthenticated();
 
@@ -40,7 +43,7 @@ export default async function AdminLoginPage() {
             </div>
           }
         >
-          <AdminLoginClient />
+          <AdminLoginClient accountsEnabled={accountsEnabled()} />
         </Suspense>
       </section>
 

@@ -71,7 +71,7 @@ export async function POST(
 ) {
   try {
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("places");
 
     if (!authenticated) {
       return NextResponse.json(

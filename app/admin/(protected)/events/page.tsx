@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
 import {
@@ -167,6 +168,7 @@ function registrationStatusLabel(
 }
 
 export default async function EventsPage() {
+  await requireAdminPermission("events");
   const events =
     await client.fetch<
       AdminEvent[]

@@ -1,3 +1,6 @@
+import { accountsEnabled, currentAccount, clearAccountSession } from "./accounts";
+import { canAccess, type AdminPermission } from "./permissions";
+import { redirect } from "next/navigation";
 import {
   createHmac,
   timingSafeEqual,
@@ -205,6 +208,7 @@ export async function createAdminSession() {
 }
 
 export async function clearAdminSession() {
+  await clearAccountSession();
   const cookieStore =
     await cookies();
 
@@ -229,7 +233,7 @@ export async function clearAdminSession() {
   );
 }
 
-export async function isAdminAuthenticated() {
+async function legacyAuthenticated() {
   try {
     const cookieStore =
       await cookies();
@@ -252,4 +256,25 @@ export async function isAdminAuthenticated() {
 
     return false;
   }
+}
+
+export async function isAdminAuthenticated(permission?: AdminPermission) {
+  if (!accountsEnabled()) return legacyAuthenticated();
+  try {
+    const account = await currentAccount();
+    return !!account && canAccess(account, permission);
+  } catch {
+    return false;
+  }
+}
+
+export async function requireAdminPermission(permission: AdminPermission | "users") {
+  if (!accountsEnabled()) {
+    if (permission !== "users" && await legacyAuthenticated()) return;
+    redirect("/admin/login");
+  }
+  const account = await currentAccount();
+  if (!account) redirect("/admin/login");
+  if (account.status !== "active") redirect("/admin/account");
+  if (permission === "users" ? account.role !== "administrator" : !canAccess(account, permission)) redirect("/admin?access=denied");
 }

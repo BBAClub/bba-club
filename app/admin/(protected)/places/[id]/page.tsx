@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
 import {
@@ -85,6 +86,7 @@ export default async function EditPlacePage({
       id: string;
     }>;
 }) {
+  await requireAdminPermission("places");
   const {
     id,
   } =

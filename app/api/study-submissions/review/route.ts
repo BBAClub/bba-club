@@ -267,7 +267,7 @@ export async function POST(
     */
 
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("study");
 
     if (
       !authenticated

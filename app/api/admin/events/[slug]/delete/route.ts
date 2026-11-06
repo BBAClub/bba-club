@@ -24,7 +24,7 @@ export async function DELETE(
 ) {
   try {
     const authenticated =
-      await isAdminAuthenticated();
+      await isAdminAuthenticated("events");
 
     if (!authenticated) {
       return NextResponse.json(

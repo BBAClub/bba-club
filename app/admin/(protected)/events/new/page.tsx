@@ -1,3 +1,4 @@
+import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
 import AdminEventForm from "@/components/AdminEventForm";
@@ -5,7 +6,8 @@ import AdminEventForm from "@/components/AdminEventForm";
 export const dynamic =
   "force-dynamic";
 
-export default function NewEventPage() {
+export default async function NewEventPage() {
+  await requireAdminPermission("events");
   return (
     <div>
       <div className="mb-8">
