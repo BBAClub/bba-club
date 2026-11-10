@@ -8,7 +8,11 @@ const root = path.resolve(__dirname, "..");
 let jar, records, emails, sequence, mailError;
 const clone = (value) => value && JSON.parse(JSON.stringify(value));
 function put(doc) {
-  const value = { ...clone(doc), _rev: String(++sequence) };
+  const value = {
+    _createdAt: new Date().toISOString(),
+    ...clone(doc),
+    _rev: String(++sequence),
+  };
   records.set(value._id, value);
   return clone(value);
 }
@@ -23,6 +27,10 @@ const database = {
   },
   async createIfNotExists(doc) {
     return records.has(doc._id) ? clone(records.get(doc._id)) : put(doc);
+  },
+  async create(doc) {
+    if (records.has(doc._id)) throw conflict();
+    return put(doc);
   },
   async createOrReplace(doc) {
     return put(doc);
@@ -563,4 +571,85 @@ test("reset supports a verified account created before passwords existed", async
   const account = await accounts.passwordSignIn(member.email, TEST_PASSWORD);
   assert.equal(account.id, member.id);
   assert.equal(account.status, "pending");
+});
+
+test("Tasks API denies unauthenticated and pending accounts", async () => {
+  const route = load("app/api/admin/tasks/route");
+  const request = () =>
+    new Request("https://club.example/api/admin/tasks", {
+      method: "POST",
+      headers: {
+        origin: "https://club.example",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ action: "create", title: "Denied task" }),
+    });
+  assert.equal((await route.POST(request())).status, 403);
+  await signIn();
+  assert.equal((await route.POST(request())).status, 403);
+  assert.ok(![...records.values()].some((doc) => doc._type === "adminTask"));
+});
+
+test("Tasks accepts an eligible assignee and rejects stale moves and invalid dates", async () => {
+  const { saveTask } = load("lib/admin/tasks");
+  const pending = await signIn();
+  const owner = await signIn("owner@vse.cz");
+  const { pragueDate } = load("lib/admin/task-types");
+  const today = pragueDate();
+  const old = new Date(today + "T00:00:00Z");
+  old.setUTCDate(old.getUTCDate() - 14);
+  const tooOld = old.toISOString().slice(0, 10);
+  old.setUTCDate(old.getUTCDate() + 1);
+  put({
+    _id: "recent-event",
+    _type: "event",
+    date: old.toISOString().slice(0, 10),
+  });
+  put({ _id: "old-event", _type: "event", date: tooOld });
+  put({ _id: "today-event", _type: "event", date: today });
+  const fields = {
+    action: "create",
+    title: "Prepare launch",
+    description: "",
+    eventId: "recent-event",
+    assigneeId: owner.id,
+    dueDate: "2026-11-30",
+    priority: "high",
+    status: "todo",
+  };
+  await assert.rejects(
+    () => saveTask({ ...fields, assigneeId: pending.id }),
+    /active member/,
+  );
+  await assert.rejects(
+    () => saveTask({ ...fields, dueDate: "2026-02-30" }),
+    /valid due date/,
+  );
+  await assert.rejects(
+    () => saveTask({ ...fields, eventId: "old-event" }),
+    /less than 14 days/,
+  );
+  const { task } = await saveTask(fields);
+  assert.equal(task.eventId, "recent-event");
+  put({ ...records.get(task._id), _createdAt: "2025-01-01T12:00:00Z" });
+  const historical = records.get(task._id);
+  const { task: edited } = await saveTask({
+    ...fields,
+    action: "edit",
+    id: task._id,
+    revision: historical._rev,
+    eventId: "old-event",
+  });
+  assert.equal(edited.eventId, "old-event");
+  const move = {
+    action: "move",
+    id: task._id,
+    revision: edited._rev,
+    status: "review",
+  };
+  assert.equal((await saveTask(move)).task.status, "review");
+  await assert.rejects(
+    () => saveTask(move),
+    (error) => error.status === 409,
+  );
 });

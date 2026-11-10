@@ -1,3 +1,6 @@
+import { upcomingAssignedTasks } from "@/lib/admin/tasks";
+import { pragueDate, statuses } from "@/lib/admin/task-types";
+import { DraftLink, Panel } from "@/components/AdminSectionDraft";
 import { currentAccount } from "@/lib/admin/accounts";
 import { canAccess, permissionForPath } from "@/lib/admin/permissions";
 import Link from "next/link";
@@ -28,9 +31,9 @@ const quickActions = [
     symbol: "⌖",
   },
   {
-    title: "Review submissions",
+    title: "View submissions",
     description:
-      "Approve or reject Study Hub materials.",
+      "See incoming Study Hub materials.",
     href: "/admin/study",
     symbol: "▤",
   },
@@ -47,9 +50,9 @@ const sections = [
   {
     title: "Tasks",
     description:
-      "Kanban board for projects, events and internal work.",
+      "Kanban board for events, assignments and deadlines.",
     href: "/admin/tasks",
-    status: "Coming soon",
+    status: "Available",
   },
   {
     title: "Places",
@@ -61,42 +64,51 @@ const sections = [
   {
     title: "Study",
     description:
-      "Review submissions and manage Study Hub resources.",
+      "See submissions and Study Hub resources.",
     href: "/admin/study",
-    status: "Coming soon",
+    status: "Draft",
   },
   {
     title: "Communications",
     description:
-      "Email attendees and monitor delivery status.",
+      "Monitor automatic registration email delivery.",
     href: "/admin/communications",
-    status: "Coming soon",
+    status: "Draft",
   },
   {
     title: "Finance",
     description:
       "Payments, refunds and event finances.",
     href: "/admin/finance",
-    status: "Coming soon",
+    status: "Draft",
   },
   {
     title: "Wiki",
     description:
       "Internal BBA Club documentation and procedures.",
     href: "/admin/wiki",
-    status: "Coming soon",
+    status: "Draft",
   },
   {
     title: "Team",
     description:
       "Team members, roles and access.",
     href: "/admin/team",
-    status: "Coming soon",
+    status: "Draft",
+  },
+  {
+    title: "Settings",
+    description: "Review your account and section access.",
+    href: "/admin/settings",
+    status: "Draft",
   },
 ];
 
 export default async function AdminDashboardPage() {
   const account = await currentAccount();
+  const showTasks = account && canAccess(account, "tasks");
+  const myTasks = showTasks ? await upcomingAssignedTasks(account.id) : [];
+  const today = pragueDate();
   const visible = (href: string) => {
     const permission = permissionForPath(href);
     return !account || (permission !== "users" && canAccess(account, permission));
@@ -106,6 +118,19 @@ export default async function AdminDashboardPage() {
       {account && <p className="mb-5 text-sm text-[#A9B5C3]">Signed in as {account.name} · {account.email}{account.role === "administrator" ? " · Administrator" : ""}</p>}
       {account?.role === "administrator" && <Link href="/admin/users" className="mb-5 inline-block rounded-xl bg-[#0057FF] px-4 py-3 text-sm font-semibold">Manage accounts & access</Link>}
       {account?.role === "member" && account.permissions.length === 0 && <p className="mb-5 rounded-xl border border-white/10 p-4 text-sm text-[#A9B5C3]">Your account is approved. Ask an administrator to assign access to the sections you need.</p>}
+      {showTasks && <div className="my-6">
+        <Panel title="My tasks">
+          {myTasks.length ? <ul className="divide-y divide-white/10 text-sm">
+            {myTasks.map(task => <li key={task._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <DraftLink href={`/admin/tasks?task=${encodeURIComponent(task._id)}`}>{task.title}</DraftLink>
+              <span className={task.dueDate < today ? "text-red-300" : "text-[#A9B5C3]"}>
+                {statuses[task.status]} · {task.dueDate < today ? "Overdue · " : ""}<time dateTime={task.dueDate}>{task.dueDate}</time>
+              </span>
+            </li>)}
+          </ul> : <p className="text-sm text-[#A9B5C3]">No open tasks with a deadline assigned to you.</p>}
+          <DraftLink href="/admin/tasks?view=mine">Open my tasks on the board</DraftLink>
+        </Panel>
+      </div>}
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8EC5FF]">

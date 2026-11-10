@@ -268,13 +268,13 @@ export async function isAdminAuthenticated(permission?: AdminPermission) {
   }
 }
 
-export async function requireAdminPermission(permission: AdminPermission | "users") {
+export async function requireAdminPermission(permission: AdminPermission | "users", loginUrl = "/admin/login") {
   if (!accountsEnabled()) {
     if (permission !== "users" && await legacyAuthenticated()) return;
-    redirect("/admin/login");
+    redirect(loginUrl);
   }
   const account = await currentAccount();
-  if (!account) redirect("/admin/login");
+  if (!account) redirect(loginUrl);
   if (account.status !== "active") redirect("/admin/account");
   if (permission === "users" ? account.role !== "administrator" : !canAccess(account, permission)) redirect("/admin?access=denied");
 }

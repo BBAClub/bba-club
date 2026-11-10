@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import AdminLogoutButton from "@/components/AdminLogoutButton";
+
 
 type RegistrationStatus =
   | "confirmed"
@@ -226,7 +226,7 @@ export default function CheckInClient() {
       401
     ) {
       window.location.href =
-        "/admin/login?next=/check-in";
+        "/admin/login?next=/admin/check-in";
     }
 
     return {
@@ -641,13 +641,12 @@ export default function CheckInClient() {
 
         <div className="flex gap-2">
           <a
-            href="/admin/events"
+            href="#find-attendee"
             className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-[#A9B5C3] transition hover:bg-white/5 hover:text-white"
           >
-            Dashboard
+            Find attendee
           </a>
 
-          <AdminLogoutButton />
         </div>
       </div>
 
@@ -826,7 +825,7 @@ export default function CheckInClient() {
         </section>
       )}
 
-      <section className="mt-5 rounded-[26px] border border-white/10 bg-[#0D1D2C] p-5 md:p-7">
+      <section id="find-attendee" className="mt-5 scroll-mt-24 rounded-[26px] border border-white/10 bg-[#0D1D2C] p-5 md:p-7">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8EC5FF]">
           Manual fallback
         </p>

@@ -1081,7 +1081,7 @@ export default function EventDashboardClient() {
 
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/check-in"
+              href="/admin/check-in"
               className="rounded-xl bg-[#0057FF] px-4 py-2.5 text-sm font-semibold transition hover:bg-[#2874FF]"
             >
               Open check-in

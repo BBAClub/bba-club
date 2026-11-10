@@ -36,7 +36,7 @@ export function canAccess(account: AdminAccount, permission?: AdminPermission) {
 export function permissionForPath(
   path: string,
 ): AdminPermission | "users" | undefined {
-  if (path === "/check-in") return "checkin";
+  if (path === "/check-in" || path === "/admin/check-in") return "checkin";
   const section = path.split("/")[2];
   if (section === "users") return "users";
   return adminPermissions.find((value) => value === section);

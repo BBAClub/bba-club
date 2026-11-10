@@ -65,7 +65,7 @@ const navigation = [
   },
 ];
 
-navigation.push({ href: "/check-in", label: "Check-in", icon: "▣" });
+navigation.push({ href: "/admin/check-in", label: "Check-in", icon: "▣" });
 navigation.push({ href: "/admin/users", label: "Access & accounts", icon: "♙" });
 
 function isActivePath(

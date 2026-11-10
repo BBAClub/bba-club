@@ -1,3 +1,8 @@
+import { currentAccount, listAccounts } from "@/lib/admin/accounts";
+import { canAccess } from "@/lib/admin/permissions";
+import { eventEligible, pragueDate, statuses } from "@/lib/admin/task-types";
+import { openTasksForEvent } from "@/lib/admin/tasks";
+import { DraftLink, DraftTable, Panel } from "@/components/AdminSectionDraft";
 import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
@@ -19,6 +24,7 @@ export const dynamic =
   "force-dynamic";
 
 type EventDocument = {
+  _id: string;
   title?: string;
   slug?: string;
 
@@ -81,6 +87,7 @@ const ADMIN_EVENT_QUERY = `
     _type == "event"
     && slug.current == $slug
   ][0] {
+    _id,
     title,
 
     "slug":
@@ -327,6 +334,16 @@ export default async function EditEventPage({
         "",
     };
 
+  const account = await currentAccount();
+  const showTasks = account && canAccess(account, "tasks");
+  const [tasks, members] = showTasks
+    ? await Promise.all([openTasksForEvent(event._id), listAccounts()])
+    : [[], []];
+  const names = new Map(members.map(member => [member.id, member.name]));
+  const today = pragueDate();
+  const overdue = tasks.filter(task => task.dueDate && task.dueDate < today).length;
+  const eventTasksUrl = `/admin/tasks?event=${encodeURIComponent(event._id)}`;
+
   return (
     <div>
       <div className="mb-8">
@@ -350,6 +367,25 @@ export default async function EditEventPage({
           registration and payment settings.
         </p>
       </div>
+
+      {showTasks && <div className="mb-6 max-w-5xl">
+        <Panel title="Event tasks">
+          <p className="text-sm text-[#A9B5C3]">{tasks.length} open · {overdue} overdue</p>
+          <DraftTable headers={["Task", "Assignee", "Status", "Due"]} empty="No open tasks for this event." rows={tasks.map(task => ({
+            id: task._id,
+            cells: [
+              <DraftLink key="task" href={`/admin/tasks?task=${encodeURIComponent(task._id)}`}>{task.title}</DraftLink>,
+              task.assigneeId ? names.get(task.assigneeId) || "Former member" : "Unassigned",
+              statuses[task.status],
+              task.dueDate ? <time key="due" dateTime={task.dueDate} className={task.dueDate < today ? "text-red-300" : undefined}>{task.dueDate}</time> : "—",
+            ],
+          }))} />
+          <div className="flex flex-wrap gap-4 text-sm">
+            <DraftLink href={eventTasksUrl}>Open event tasks</DraftLink>
+            {event.date && eventEligible(event.date, new Date()) && <DraftLink href={`${eventTasksUrl}&create=1`}>Add task</DraftLink>}
+          </div>
+        </Panel>
+      </div>}
 
       <div className="max-w-5xl">
         <AdminEventForm
