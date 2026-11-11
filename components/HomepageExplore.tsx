@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import PragueMap from "@/components/PragueMap";
-import { categories, type Category, type Place } from "@/data/places";
+import { categories, homepagePlacesLimit, type Category, type Place } from "@/data/places";
 
 export default function HomepageExplore({ places }: { places: Place[] }) {
   const [activeCategory, setActiveCategory] =
@@ -31,11 +31,13 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
   );
 
+  const availableCategories = new Set(places.map(({ category }) => category));
+
   const filteredPlaces =
 
     activeCategory === "All"
 
-      ? places
+      ? places.slice(0, homepagePlacesLimit)
 
       : places.filter(
 
@@ -164,7 +166,9 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
           <div className="mb-8 flex flex-wrap gap-3">
 
-            {categories.map((category) => (
+            {categories.filter((category) =>
+              category === "All" || availableCategories.has(category)
+            ).map((category) => (
 
               <button
 
@@ -385,6 +389,8 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
                                         }{" "}
 
                                         · {place.area}
+                                {place.distanceFromSchoolKm != null &&
+                                  ` · ${place.distanceFromSchoolKm} km walk from VŠE`}
 
                                       </p>
 
@@ -447,6 +453,8 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
                                     </span>{" "}
 
                                     {place.area}
+                                {place.distanceFromSchoolKm != null &&
+                                  ` · ${place.distanceFromSchoolKm} km walk from VŠE`}
 
                                   </span>
 
@@ -745,6 +753,8 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
                                 }{" "}
 
                                 · {place.area}
+                                {place.distanceFromSchoolKm != null &&
+                                  ` · ${place.distanceFromSchoolKm} km walk from VŠE`}
 
                               </p>
 
@@ -949,6 +959,8 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
                                   desktopVisiblePlace.area
 
                                 }
+                                {desktopVisiblePlace.distanceFromSchoolKm != null &&
+                                  ` · ${desktopVisiblePlace.distanceFromSchoolKm} km walk from VŠE`}
 
                               </p>
 

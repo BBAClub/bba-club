@@ -15,8 +15,9 @@ import type {
   Event,
 } from "@/data/events";
 
-import type {
-  Place,
+import {
+  homepagePlacesLimit,
+  type Place,
 } from "@/data/places";
 
 type SanityEvent = {
@@ -83,6 +84,7 @@ type SanityPlace = {
   description: string;
 
   price: string;
+  distanceFromSchoolKm?: number;
 
   symbol: string;
 
@@ -344,6 +346,8 @@ function convertSanityPlace(
     price:
       place.price,
 
+    distanceFromSchoolKm: place.distanceFromSchoolKm,
+
     symbol:
       place.symbol,
 
@@ -431,6 +435,7 @@ export default async function Home() {
         coverImageAlt, coverImageUrl, date, description, gradient, label, location, month, price, slug, time, title,
       }));
 
+  const countsByCategory = new Map<Place["category"], number>();
   const places =
     sanityPlaces
       .map(
@@ -442,7 +447,12 @@ export default async function Home() {
         ): place is Place =>
           place !== null
       )
-      .slice(0, 6);
+      .filter(({ category }) => {
+        const count = countsByCategory.get(category) ?? 0;
+        if (count >= homepagePlacesLimit) return false;
+        countsByCategory.set(category, count + 1);
+        return true;
+      });
 
   return (
     <HomePage

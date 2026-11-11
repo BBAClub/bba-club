@@ -42,6 +42,8 @@ export type Place = {
   promoText?: string;
 };
 
+export const homepagePlacesLimit = 6;
+
 export const categories: Category[] = [
   "All",
   "Cafés",
