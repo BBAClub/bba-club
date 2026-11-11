@@ -46,7 +46,7 @@ function NavbarContent({ pathname }: { pathname: string }) {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-white/10 bg-[#071422]/95 backdrop-blur">
-      <div className="mx-auto max-w-7xl px-6 lg:px-10">
+      <div className="club-shell">
         {/* MAIN NAVBAR */}
         <div className="flex h-[76px] items-center justify-between">
           <Logo />

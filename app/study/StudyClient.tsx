@@ -234,25 +234,20 @@ export default function StudyClient({
 
       {/* HERO */}
 
-      <section className="relative overflow-hidden border-b border-white/10 px-6 py-14 md:py-20 lg:px-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(0,87,255,0.17),transparent_35%)]" />
+      <section className="pt-10 pb-6 md:pt-14 md:pb-8">
 
-        <div className="relative mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.75fr] lg:items-end lg:gap-12">
+        <div className="club-shell relative grid gap-8 lg:grid-cols-[1fr_0.75fr] lg:items-end lg:gap-12">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
-              BBA Club · Study Hub
-            </p>
-
-            <h1 className="mt-4 max-w-4xl text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-5xl md:mt-5 md:text-7xl">
+            <h1 className="club-page-title">
               Study smarter.
-              <br />
+              {" "}
 
-              <span className="text-[#0057FF]">
+              <span className="text-[#8EC5FF]">
                 Share what you know.
               </span>
             </h1>
 
-            <p className="mt-6 max-w-2xl text-base leading-7 text-[#A9B5C3] md:mt-7 md:text-lg md:leading-8">
+            <p className="club-intro mt-3 text-[#A9B5C3]">
               Course tips, useful
               links, student notes,
               exam previews and
@@ -264,7 +259,7 @@ export default function StudyClient({
 
             <Link
               href="/study/submit"
-              className="mt-7 inline-flex items-center rounded-xl bg-[#0057FF] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#2874FF] lg:hidden"
+              className="mt-7 inline-flex items-center min-h-11 text-sm font-semibold text-[#8EC5FF] underline underline-offset-4 hover:text-white lg:hidden"
             >
               Submit a resource →
             </Link>
@@ -272,7 +267,7 @@ export default function StudyClient({
 
           {/* DESKTOP SUBMIT CTA */}
 
-          <div className="hidden rounded-[26px] border border-[#0057FF]/30 bg-[#0D2035] p-7 lg:block">
+          <div className="hidden border-t border-white/10 pt-4 lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8EC5FF]">
               Student community
             </p>
@@ -294,7 +289,7 @@ export default function StudyClient({
 
             <Link
               href="/study/submit"
-              className="mt-6 inline-flex items-center rounded-xl bg-[#0057FF] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#2874FF]"
+              className="mt-6 inline-flex items-center min-h-11 text-sm font-semibold text-[#8EC5FF] underline underline-offset-4 hover:text-white"
             >
               Submit a resource →
             </Link>
@@ -304,18 +299,18 @@ export default function StudyClient({
 
       {/* RESOURCE EXPLORER */}
 
-      <section className="px-6 py-12 md:py-16 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="pt-4 pb-12 md:pt-5 md:pb-16">
+        <div className="club-shell">
           <div className="mb-8 md:mb-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
               Resources
             </p>
 
-            <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] md:text-4xl">
+            <h2 className="club-section-title">
               Find what you need.
             </h2>
 
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#A9B5C3] md:text-base">
+            <p className="club-intro mt-3 text-[#A9B5C3]">
               Browse courses,
               materials, student
               advice, test previews
@@ -627,20 +622,20 @@ export default function StudyClient({
 
       {/* COURSES */}
 
-      <section className="border-t border-white/10 bg-[#091725] px-6 py-14 md:py-20 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="border-t border-white/10 bg-[#091725] club-section">
+        <div className="club-shell">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
             Courses
           </p>
 
           <div className="mt-3 flex flex-col justify-between gap-5 md:flex-row md:items-end">
             <div>
-              <h2 className="text-3xl font-bold tracking-[-0.03em] md:text-5xl">
+              <h2 className="club-section-title">
                 Find your
                 subject.
               </h2>
 
-              <p className="mt-3 max-w-xl text-sm leading-6 text-[#A9B5C3] md:text-base">
+              <p className="club-intro mt-3 text-[#A9B5C3]">
                 Course pages bring
                 together tips,
                 materials, test
@@ -782,8 +777,8 @@ export default function StudyClient({
 
       {/* UNIVERSITY SURVIVAL */}
 
-      <section className="border-t border-white/10 px-6 py-14 md:py-20 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="border-t border-white/10 club-section">
+        <div className="club-shell">
           <div className="grid gap-8 lg:grid-cols-[0.7fr_1.3fr] lg:gap-12">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
@@ -791,7 +786,7 @@ export default function StudyClient({
                 survival
               </p>
 
-              <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] md:text-4xl">
+              <h2 className="club-section-title">
                 Things nobody
                 tells you at the
                 start.
@@ -846,8 +841,8 @@ export default function StudyClient({
 
       {/* COMMUNITY */}
 
-      <section className="border-t border-white/10 bg-[#091725] px-6 py-14 md:py-20 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="border-t border-white/10 bg-[#091725] club-section">
+        <div className="club-shell">
           <div className="overflow-hidden rounded-[24px] border border-[#0057FF]/30 bg-[linear-gradient(120deg,#0D2035,#091725)] p-6 md:rounded-[30px] md:p-12">
             <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:gap-10">
               <div>
@@ -860,7 +855,7 @@ export default function StudyClient({
                   Study Hub.
                 </h2>
 
-                <p className="mt-4 max-w-2xl text-sm leading-6 text-[#A9B5C3] md:mt-5 md:text-base md:leading-7">
+                <p className="club-intro mt-4 text-[#A9B5C3] md:mt-5">
                   Have notes,
                   advice, a useful
                   link or an old test

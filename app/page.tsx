@@ -431,8 +431,8 @@ export default async function Home() {
         ): event is Event =>
           event !== null && event.status === "upcoming"
       )
-      .map(({ coverImageAlt, coverImageUrl, date, description, gradient, label, location, month, price, slug, time, title }) => ({
-        coverImageAlt, coverImageUrl, date, description, gradient, label, location, month, price, slug, time, title,
+      .map(({ coverImageAlt, coverImageUrl, date, description, label, location, month, price, slug, time, title }) => ({
+        coverImageAlt, coverImageUrl, date, description, label, location, month, price, slug, time, title,
       }));
 
   const countsByCategory = new Map<Place["category"], number>();
@@ -458,14 +458,8 @@ export default async function Home() {
     <HomePage
       events={events}
       places={places}
-      heroImageUrl={
-        homepageSettings
-          ?.heroImageUrl
-      }
-      heroImageAlt={
-        homepageSettings
-          ?.heroImageAlt
-      }
+      heroImageUrl={homepageSettings?.heroImageUrl}
+      heroImageAlt={homepageSettings?.heroImageAlt}
     />
   );
 }

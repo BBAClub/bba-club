@@ -1118,7 +1118,7 @@ export default function EventDashboardClient() {
           <>
             {/* EVENT SELECTOR */}
 
-            <section className="mt-9 rounded-[24px] border border-white/10 bg-[#0D1D2C] p-5 md:p-6">
+            <section className="mt-6 border-y border-white/15 py-4">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71869A]">
@@ -1173,7 +1173,7 @@ export default function EventDashboardClient() {
               <>
                 {/* EVENT INFO */}
 
-                <section className="mt-5 rounded-[26px] border border-white/10 bg-[#0B1A29] p-6 md:p-8">
+                <section className="mt-6 border-b border-white/15 pb-5">
                   <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
                     <div>
                       <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8EC5FF]">
@@ -1221,7 +1221,7 @@ export default function EventDashboardClient() {
                   {/* STATS */}
 
                   <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    <div className="rounded-[18px] border border-white/10 bg-[#071422] p-4 md:p-5">
+                    <div className="border-t border-white/15 py-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71869A]">
                         Registered
                       </p>
@@ -1246,7 +1246,7 @@ export default function EventDashboardClient() {
                       </p>
                     </div>
 
-                    <div className="rounded-[18px] border border-white/10 bg-[#071422] p-4 md:p-5">
+                    <div className="border-t border-white/15 py-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71869A]">
                         Waitlist
                       </p>
@@ -1260,7 +1260,7 @@ export default function EventDashboardClient() {
                       </p>
                     </div>
 
-                    <div className="rounded-[18px] border border-white/10 bg-[#071422] p-4 md:p-5">
+                    <div className="border-t border-white/15 py-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71869A]">
                         Checked in
                       </p>
@@ -1274,7 +1274,7 @@ export default function EventDashboardClient() {
                       </p>
                     </div>
 
-                    <div className="rounded-[18px] border border-white/10 bg-[#071422] p-4 md:p-5">
+                    <div className="border-t border-white/15 py-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71869A]">
                         Remaining
                       </p>
@@ -1336,7 +1336,7 @@ export default function EventDashboardClient() {
 
                 {/* REGISTRATIONS */}
 
-                <section className="mt-5 rounded-[26px] border border-white/10 bg-[#0D1D2C] p-5 md:p-7">
+                <section className="mt-6">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8EC5FF]">
@@ -1391,7 +1391,7 @@ export default function EventDashboardClient() {
                       placeholder="Search name, email or university..."
                       className="w-full rounded-xl border border-white/10 bg-[#071422] px-4 py-3 outline-none focus:border-[#0057FF]"
                     />
-                    <button type="submit" disabled={loadingEvent} className="rounded-xl border border-white/10 px-4">Search</button>
+                    <button type="submit" disabled={loadingEvent} className="min-h-10 rounded-md border border-white/20 px-4 text-sm font-medium hover:bg-white/5">Search</button>
                   </form>
 
                   {/* FILTERS */}
@@ -1574,24 +1574,24 @@ export default function EventDashboardClient() {
                       <div className="mt-6 hidden overflow-x-auto md:block">
                         <table className="w-full min-w-[850px] text-left">
                           <thead>
-                            <tr className="border-b border-white/10 text-[10px] uppercase tracking-[0.12em] text-[#53687D]">
-                              <th className="px-3 py-3 font-semibold">
+                            <tr className="border-b border-white/15 bg-white/5 text-xs text-[#C2CEDA]">
+                              <th scope="col" className="px-3 py-2.5 font-semibold">
                                 Attendee
                               </th>
 
-                              <th className="px-3 py-3 font-semibold">
+                              <th scope="col" className="px-3 py-2.5 font-semibold">
                                 University
                               </th>
 
-                              <th className="px-3 py-3 font-semibold">
+                              <th scope="col" className="px-3 py-2.5 font-semibold">
                                 Status
                               </th>
 
-                              <th className="px-3 py-3 font-semibold">
+                              <th scope="col" className="px-3 py-2.5 font-semibold">
                                 Registered
                               </th>
 
-                              <th className="px-3 py-3 font-semibold">
+                              <th scope="col" className="px-3 py-2.5 font-semibold">
                                 Check-in
                               </th>
                             </tr>

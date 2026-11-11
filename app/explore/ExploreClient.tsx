@@ -168,26 +168,21 @@ export default function ExploreClient({
 
       {/* HERO */}
 
-      <section className="relative overflow-hidden border-b border-white/10 px-6 py-14 md:py-20 lg:px-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(0,87,255,0.16),transparent_34%)]" />
+      <section className="pt-10 pb-6 md:pt-14 md:pb-8">
 
-        <div className="relative mx-auto max-w-7xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
-            BBA Club · Prague Guide
-          </p>
-
+        <div className="club-shell relative">
           <div className="mt-4 grid gap-7 lg:grid-cols-[1fr_0.7fr] lg:items-end lg:gap-10">
             <div>
-              <h1 className="max-w-4xl text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-5xl md:text-7xl">
+              <h1 className="club-page-title">
                 Discover Prague
-                <br />
+                {" "}
 
-                <span className="text-[#0057FF]">
+                <span className="text-[#8EC5FF]">
                   like a local.
                 </span>
               </h1>
 
-              <p className="mt-6 max-w-2xl text-base leading-7 text-[#A9B5C3] md:mt-7 md:text-lg md:leading-8">
+              <p className="club-intro mt-3 text-[#A9B5C3]">
                 Cafés, places to study,
                 food, nightlife and
                 everything else worth
@@ -197,7 +192,7 @@ export default function ExploreClient({
               </p>
             </div>
 
-            <div className="rounded-[20px] border border-white/10 bg-[#0D1D2C] p-5 md:rounded-[24px] md:p-6">
+            <div className="border-t border-white/10 pt-3 lg:pt-4">
               <p className="text-xs font-semibold text-[#8EC5FF] md:text-sm">
                 BBA Club tip
               </p>
@@ -220,8 +215,8 @@ export default function ExploreClient({
 
       {/* MAIN GUIDE */}
 
-      <section className="px-6 py-12 md:py-16 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="pt-4 pb-12 md:pt-5 md:pb-16">
+        <div className="club-shell">
           {/* SEARCH */}
 
           <div className="mb-4 md:mb-6">
@@ -782,18 +777,18 @@ export default function ExploreClient({
 
       {/* PARTNERS */}
 
-      <section className="border-t border-white/10 bg-[#091725] px-6 py-16 md:py-24 lg:px-10">
-        <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[1fr_0.7fr] lg:items-center lg:gap-12">
+      <section className="border-t border-white/10 bg-[#091725] club-section">
+        <div className="club-shell grid gap-8 lg:grid-cols-[1fr_0.7fr] lg:items-center lg:gap-12">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
               BBA Club Partners
             </p>
 
-            <h2 className="mt-3 max-w-2xl text-3xl font-bold tracking-[-0.03em] md:text-5xl">
+            <h2 className="club-section-title">
               More than recommendations.
             </h2>
 
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-[#A9B5C3] md:mt-5 md:text-lg md:leading-8">
+            <p className="club-intro mt-4 text-[#A9B5C3] md:mt-5">
               Over time, selected
               businesses can offer BBA Club
               students special discounts,

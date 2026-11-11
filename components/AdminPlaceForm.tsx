@@ -496,7 +496,7 @@ export default function AdminPlaceForm({
       onSubmit={
         handleSubmit
       }
-      className="space-y-8"
+      className="max-w-5xl space-y-7"
     >
       {error && (
         <div className="rounded-2xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200">
@@ -894,7 +894,7 @@ export default function AdminPlaceForm({
         <button
           type="submit"
           disabled={busy}
-          className="rounded-xl bg-[#0057FF] px-6 py-3 text-sm font-semibold text-white hover:bg-[#2874FF] disabled:opacity-50"
+          className="min-h-11 rounded-md bg-[#0057FF] px-5 py-2 text-sm font-semibold text-white hover:bg-[#0048D8] disabled:opacity-50"
         >
           {uploading
             ? "Uploading image..."
@@ -920,8 +920,8 @@ function Section({
     React.ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-white/10 bg-[#0B1A29] p-5 md:p-6">
-      <div className="border-b border-white/10 pb-5">
+    <section className="border-t border-white/15 pt-4">
+      <div className="pb-3">
         <h2 className="text-lg font-semibold text-white">
           {title}
         </h2>

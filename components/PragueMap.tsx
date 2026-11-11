@@ -34,7 +34,7 @@ const PragueMapInner =
       ssr: false,
 
       loading: () => (
-        <div className="flex h-full min-h-[340px] items-center justify-center rounded-[24px] border border-white/10 bg-[#091A2A] text-sm text-[#71869A]">
+        <div role="status" className="flex h-full min-h-[340px] items-center justify-center rounded-[24px] border border-white/10 bg-[#091A2A] text-sm text-[#A9B5C3]">
           Loading map...
         </div>
       ),

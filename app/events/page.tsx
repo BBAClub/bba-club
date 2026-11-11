@@ -516,24 +516,19 @@ export default async function EventsPage() {
       <Navbar />
 
       {/* HERO */}
-      <section className="relative overflow-hidden border-b border-white/10 px-6 py-14 md:py-20 lg:px-10">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(0,87,255,0.16),transparent_34%)]" />
+      <section className="pt-10 pb-6 md:pt-14 md:pb-8">
 
-        <div className="relative mx-auto max-w-7xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
-            BBA Club · Events
-          </p>
-
-          <h1 className="mt-4 max-w-4xl text-[42px] font-bold leading-[0.98] tracking-[-0.045em] sm:text-5xl md:mt-5 md:text-7xl">
+        <div className="club-shell relative">
+          <h1 className="club-page-title">
             Meet people.
-            <br />
+            {" "}
 
-            <span className="text-[#0057FF]">
+            <span className="text-[#8EC5FF]">
               Do something memorable.
             </span>
           </h1>
 
-          <p className="mt-6 max-w-2xl text-base leading-7 text-[#A9B5C3] md:mt-7 md:text-lg md:leading-8">
+          <p className="club-intro mt-3 text-[#A9B5C3]">
             Socials, trips,
             workshops and everything
             in between. Find out
@@ -543,14 +538,14 @@ export default async function EventsPage() {
       </section>
 
       {/* UPCOMING EVENTS */}
-      <section className="px-6 py-14 md:py-20 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="py-7 md:py-10">
+        <div className="club-shell">
           <div className="mb-7 md:mb-10">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
               What&apos;s next
             </p>
 
-            <h2 className="mt-3 text-3xl font-bold tracking-tight md:text-4xl">
+            <h2 className="club-section-title">
               Upcoming Events
             </h2>
           </div>
@@ -572,7 +567,7 @@ export default async function EventsPage() {
               )}
             </div>
           ) : (
-            <div className="rounded-[22px] border border-dashed border-white/15 bg-white/[0.02] p-7 text-center md:rounded-[28px] md:p-12">
+            <div className="border-t border-white/15 py-4">
               <p className="font-medium md:text-lg">
                 No upcoming events
                 yet.
@@ -588,17 +583,17 @@ export default async function EventsPage() {
       </section>
 
       {/* PAST EVENTS */}
-      <section className="border-t border-white/10 bg-[#091725] px-6 py-14 md:py-20 lg:px-10">
-        <div className="mx-auto max-w-7xl">
+      <section className="border-t border-white/10 bg-[#091725] py-7 md:py-10">
+        <div className="club-shell">
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8EC5FF] md:text-xs">
             Good times
           </p>
 
-          <h2 className="mt-3 text-3xl font-bold md:text-4xl">
+          <h2 className="club-section-title">
             Past Events
           </h2>
 
-          <p className="mt-4 max-w-xl text-sm leading-6 text-[#A9B5C3] md:text-base">
+          <p className="club-intro mt-4 text-[#A9B5C3]">
             As BBA Club grows,
             this will become the
             archive of everything

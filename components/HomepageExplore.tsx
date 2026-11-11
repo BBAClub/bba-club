@@ -110,31 +110,25 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
         id="prague"
 
-        className="border-t border-white/10 bg-[#071422] px-6 py-16 lg:px-10 lg:py-24"
+        className="border-t border-white/10 bg-[#071422] club-section"
 
       >
 
-        <div className="mx-auto max-w-7xl">
+        <div className="club-shell">
 
           <div className="mb-8 sm:mb-10">
-
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#8EC5FF]">
-
-              Discover more
-
-            </p>
 
             <div className="mt-3 flex flex-col justify-between gap-5 md:flex-row md:items-end">
 
               <div>
 
-                <h2 className="text-3xl font-bold tracking-[-0.03em] sm:text-4xl md:text-5xl">
+                <h2 className="club-section-title">
 
                   Explore Prague
 
                 </h2>
 
-                <p className="mt-3 max-w-xl text-[#A9B5C3]">
+                <p className="club-intro mt-3 text-[#A9B5C3]">
 
                   Places worth knowing,
 
@@ -150,7 +144,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                 href="/explore"
 
-                className="text-sm font-semibold text-[#5790FF] transition hover:text-white"
+                className="text-sm font-semibold text-[#8EC5FF] underline-offset-4 hover:underline hover:text-white"
 
               >
 
@@ -164,7 +158,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
           {/* FILTERS */}
 
-          <div className="mb-8 flex flex-wrap gap-3">
+          <div className="mb-6 flex flex-wrap gap-2">
 
             {categories.filter((category) =>
               category === "All" || availableCategories.has(category)
@@ -173,6 +167,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
               <button
 
                 key={category}
+                aria-pressed={activeCategory === category}
 
                 type="button"
 
@@ -182,11 +177,11 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                 }
 
-                className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+                className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium transition-colors ${
 
                   activeCategory === category
 
-                    ? "bg-[#0057FF] text-white"
+                    ? "border-transparent bg-[#0057FF] text-white"
 
                     : "border border-white/10 bg-white/5 text-[#A9B5C3] hover:bg-white/10 hover:text-white"
 
@@ -204,7 +199,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
           {places.length === 0 ? (
 
-            <div className="rounded-[24px] border border-dashed border-white/15 bg-white/[0.02] p-8 text-center md:p-12">
+            <div className="border-t border-white/15 py-5">
 
               <p className="font-semibold md:text-lg">
 
@@ -226,7 +221,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                 href="/explore"
 
-                className="mt-5 inline-block text-sm font-semibold text-[#5790FF] transition hover:text-white"
+                className="mt-5 inline-block text-sm font-semibold text-[#8EC5FF] underline-offset-4 hover:underline hover:text-white"
 
               >
 
@@ -268,7 +263,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                           <div
 
-                            className={`overflow-hidden rounded-[20px] border transition ${
+                            className={`overflow-hidden border-b transition ${
 
                               isSelected
 
@@ -370,7 +365,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                         {place.partner && (
 
-                                          <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF]">
+                                          <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF]">
 
                                             BBA Perk
 
@@ -494,7 +489,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                     <div className="mt-4 rounded-xl border border-[#0057FF]/30 bg-[#0057FF]/10 p-4">
 
-                                      <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#8EC5FF]">
+                                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#8EC5FF]">
 
                                         BBA Club
 
@@ -536,7 +531,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                     href="/explore"
 
-                                    className="text-sm font-semibold text-[#5790FF] transition hover:text-white"
+                                    className="text-sm font-semibold text-[#8EC5FF] underline-offset-4 hover:underline hover:text-white"
 
                                   >
 
@@ -660,7 +655,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                             }
 
-                            className={`group flex w-full items-center gap-4 rounded-[20px] border p-4 text-left transition lg:gap-5 lg:p-5 ${
+                            className={`group flex w-full items-center gap-4 border-b px-2 py-4 text-left transition lg:gap-5 lg:px-3 ${
 
                               isSelected
 
@@ -732,7 +727,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                 {place.partner && (
 
-                                  <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF] lg:px-2.5 lg:py-1 lg:text-[9px]">
+                                  <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#8EC5FF] lg:px-2.5 lg:py-1 lg:text-[11px]">
 
                                     BBA Club
 
@@ -856,7 +851,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                       {desktopVisiblePlace && (
 
-                        <div className="mt-5 rounded-[26px] border border-white/10 bg-[#0B1A29] p-5 lg:p-6">
+                        <div className="mt-5 border-t border-white/15 pt-5">
 
                           <div className="flex items-start gap-4">
 
@@ -916,7 +911,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                 {desktopVisiblePlace.partner && (
 
-                                  <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[#8EC5FF]">
+                                  <span className="rounded-full border border-[#0057FF]/30 bg-[#0057FF]/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#8EC5FF]">
 
                                     BBA Club
 
@@ -980,7 +975,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                   <div className="mt-5 rounded-xl border border-[#0057FF]/30 bg-[#0057FF]/10 p-4">
 
-                                    <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-[#8EC5FF]">
+                                    <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#8EC5FF]">
 
                                       BBA Club
 
@@ -1016,7 +1011,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
                                 href="/explore"
 
-                                className="mt-5 inline-block text-sm font-semibold text-[#5790FF] transition hover:text-white"
+                                className="mt-5 inline-block text-sm font-semibold text-[#8EC5FF] underline-offset-4 hover:underline hover:text-white"
 
                               >
 
@@ -1054,7 +1049,7 @@ export default function HomepageExplore({ places }: { places: Place[] }) {
 
               </div>
 
-              <p className="mt-5 text-xs leading-5 text-[#53687D] md:hidden">
+              <p className="mt-5 text-xs leading-5 text-[#A9B5C3] md:hidden">
 
                 Tap a place to preview its
 

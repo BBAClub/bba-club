@@ -14,7 +14,7 @@ import {
 const control =
   "w-full rounded-lg border border-white/15 bg-[#071422] px-3 py-2 text-sm text-white";
 const button =
-  "rounded-lg bg-[#0057FF] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50";
+  "min-h-10 rounded-md bg-[#0057FF] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0048D8] disabled:opacity-50";
 const columns = Object.entries(statuses) as [Fields["status"], string][];
 const empty: Fields = {
   title: "",
@@ -272,7 +272,7 @@ export default function AdminTasksBoard({
           </button>
         </div>
       </header>
-      <div className="grid gap-3 rounded-2xl border border-white/10 bg-[#0D1D2C] p-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 border-y border-white/15 py-3 sm:grid-cols-2 xl:grid-cols-4">
         <label className="space-y-1 text-xs">
           Event
           <select
@@ -376,7 +376,7 @@ export default function AdminTasksBoard({
       )}
       {draft && (
         <form
-          className="space-y-4 rounded-2xl border border-white/10 bg-[#0D1D2C] p-4"
+          className="max-w-4xl space-y-4 border-b border-white/15 pb-5"
           onSubmit={submit}
         >
           <h2 className="font-semibold">
