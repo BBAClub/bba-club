@@ -1,3 +1,4 @@
+import { takeRequestQuota, trustedRequestIp } from "@/lib/requestRateLimit";
 import { NextResponse } from "next/server";
 import { createAdminSession, verifyAdminPassword } from "@/lib/admin/auth";
 import {
@@ -15,6 +16,14 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   try {
+    if (Number(request.headers.get("content-length")) > 16_384) {
+      return NextResponse.json({ error: "Request is too large." }, { status: 413 });
+    }
+    const source = trustedRequestIp(request);
+    if (source && !(await takeRequestQuota("login:source", source, 25))) {
+      return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
+    }
+
     const body = await request.json();
     if (accountsEnabled()) {
       if (body.action === "register") {

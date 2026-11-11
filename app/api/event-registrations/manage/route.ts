@@ -1,3 +1,5 @@
+import { trustedRequest } from "@/lib/admin/security";
+import { capacityConflict, capacityTransaction, readEventCapacity } from "@/lib/events/capacity";
 import {
   NextResponse,
 } from "next/server";
@@ -55,6 +57,7 @@ type AdminAction =
 
 type Registration = {
   _id: string;
+  _rev: string;
 
   firstName?: string;
   lastName?: string;
@@ -93,6 +96,7 @@ type RequestBody = {
 
 const REGISTRATION_FIELDS = `
   _id,
+  _rev,
 
   firstName,
   lastName,
@@ -257,56 +261,21 @@ async function getRegistration(
 }
 
 async function patchStatus(
-  registrationId: string,
-
-  status:
-    RegistrationStatus
+  writeClient: typeof client,
+  registration: Registration,
+  status: RegistrationStatus,
 ) {
-  const token =
-    process.env
-      .SANITY_API_WRITE_TOKEN;
-
-  if (!token) {
-    throw new Error(
-      "Missing SANITY_API_WRITE_TOKEN."
-    );
-  }
-
-  const writeClient =
-    client.withConfig({
-      token,
-
-      useCdn:
-        false,
-    });
-
-  let patch =
-    writeClient
-      .patch(
-        registrationId
-      )
-      .set({
-        status,
-      });
-
-  if (
-    status ===
-    "checked-in"
-  ) {
-    patch =
-      patch.set({
-        checkedInAt:
-          new Date()
-            .toISOString(),
-      });
+  const patch = writeClient.patch(registration._id).ifRevisionId(registration._rev);
+  patch.set({ status });
+  if (status === "checked-in") {
+    patch.set({ checkedInAt: new Date().toISOString() });
   } else {
-    patch =
-      patch.unset([
-        "checkedInAt",
-      ]);
+    patch.unset(["checkedInAt"]);
   }
-
-  await patch.commit();
+  if (status === "waitlist" && registration.status === "pending-payment") {
+    patch.set({ paymentStatus: "failed" }).unset(["reservationExpiresAt", "paymentRedirectUrl"]);
+  }
+  await patch.commit({ visibility: "sync" });
 }
 
 async function ensureTicketCode(
@@ -513,103 +482,6 @@ async function sendStatusEmail(
   - active Comgate reservation
 */
 
-async function checkCapacity(
-  registration:
-    Registration
-) {
-  const event =
-    registration.event;
-
-  const eventId =
-    registration.eventId;
-
-  if (
-    !event ||
-    !eventId
-  ) {
-    throw new Error(
-      "Registration is not connected to an event."
-    );
-  }
-
-  if (
-    typeof event.capacity !==
-      "number" ||
-    event.capacity <= 0
-  ) {
-    return;
-  }
-
-  const now =
-    new Date()
-      .toISOString();
-
-  const occupied =
-    await client.fetch<number>(
-      `
-        count(
-          *[
-            _type ==
-              "eventRegistration"
-
-            && event._ref ==
-              $eventId
-
-            && _id !=
-              $registrationId
-
-            && (
-              status in [
-                "confirmed",
-                "checked-in"
-              ]
-
-              ||
-
-              (
-                status ==
-                  "pending-payment"
-
-                && paymentStatus ==
-                  "pending"
-
-                && defined(
-                  reservationExpiresAt
-                )
-
-                && reservationExpiresAt >
-                  $now
-              )
-            )
-          ]
-        )
-      `,
-      {
-        eventId,
-
-        registrationId:
-          registration._id,
-
-        now,
-      }
-    );
-
-  if (
-    occupied >=
-    event.capacity
-  ) {
-    throw new Error(
-      `The event is full (${occupied}/${event.capacity}).`
-    );
-  }
-}
-
-/*
-  If an admin tries to remove an
-  active payment reservation, cancel
-  Comgate before releasing the seat.
-*/
-
 async function cancelPendingPayment(
   registration:
     Registration
@@ -662,50 +534,6 @@ async function cancelPendingPayment(
   }
 }
 
-async function markPendingPaymentCancelled(
-  registration:
-    Registration
-) {
-  if (
-    registration.status !==
-    "pending-payment"
-  ) {
-    return;
-  }
-
-  const token =
-    process.env
-      .SANITY_API_WRITE_TOKEN;
-
-  if (!token) {
-    throw new Error(
-      "Missing SANITY_API_WRITE_TOKEN."
-    );
-  }
-
-  const writeClient =
-    client.withConfig({
-      token,
-
-      useCdn:
-        false,
-    });
-
-  await writeClient
-    .patch(
-      registration._id
-    )
-    .set({
-      paymentStatus:
-        "failed",
-    })
-    .unset([
-      "reservationExpiresAt",
-      "paymentRedirectUrl",
-    ])
-    .commit();
-}
-
 async function promoteAfterSeatFreed(
   request: Request,
 
@@ -756,6 +584,9 @@ async function promoteAfterSeatFreed(
 export async function POST(
   request: Request
 ) {
+  if (!trustedRequest(request)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
   try {
     const authenticated =
       await isAdminAuthenticated("registrations");
@@ -927,60 +758,35 @@ export async function POST(
         );
       }
 
-      await checkCapacity(
-        registration
-      );
-
-      /*
-        Before Comgate is enabled,
-        confirming a paid registration
-        means payment on site.
-      */
-
-      if (
-        eventPrice > 0 &&
-      !eventUsesOnlinePayments(
-        registration.event
-      ) &&
-        registration
-          .paymentStatus !==
-          "paid"
-      ) {
-        await writeClient
-          .patch(
-            registration._id
-          )
-          .set({
-            status:
-              "confirmed",
-
-            paymentStatus:
-              "pay_on_site",
-
-            paymentProvider:
-              "manual",
-
-            paymentAmount:
-              eventPrice,
-
-            paymentCurrency:
-              getEventCurrency(
-                registration.event
-              ),
-          })
-          .unset([
-            "checkedInAt",
-            "reservationExpiresAt",
-            "paymentRedirectUrl",
-          ])
-          .commit();
-      } else {
-        await patchStatus(
-          registration._id,
-
-          "confirmed"
-        );
+      if (previousStatus === "confirmed" || previousStatus === "checked-in") {
+        return NextResponse.json({ success: true, promoted: [] });
       }
+
+      const eventId = registration.eventId;
+      const capacity = eventId && await readEventCapacity(writeClient, eventId, undefined, registration._id);
+      if (!eventId || !capacity) {
+        return NextResponse.json({ error: "Event not found." }, { status: 409 });
+      }
+      if (capacity.registrationStatus === "full" ||
+          (capacity.capacity && capacity.occupied >= capacity.capacity)) {
+        return NextResponse.json({ error: "The event is full." }, { status: 409 });
+      }
+
+      const payAtVenue = eventPrice > 0 && !eventUsesOnlinePayments(registration.event) &&
+        registration.paymentStatus !== "paid";
+      await capacityTransaction(writeClient, eventId, capacity._rev)
+        .patch(registration._id, patch => patch.ifRevisionId(registration._rev)
+          .set({
+            status: "confirmed",
+            ...(payAtVenue ? {
+              paymentStatus: "pay_on_site",
+              paymentProvider: "manual",
+              paymentAmount: eventPrice,
+              paymentCurrency: getEventCurrency(registration.event),
+            } : {}),
+          })
+          .unset(["checkedInAt", "reservationExpiresAt", "paymentRedirectUrl"]))
+        .commit({ visibility: "sync" });
 
       const updated:
         Registration = {
@@ -1008,22 +814,17 @@ export async function POST(
           ),
       };
 
-      if (
-        previousStatus !==
-        "confirmed"
-      ) {
-        try {
-          await sendStatusEmail(
-            updated,
+      try {
+        await sendStatusEmail(
+          updated,
 
-            "confirmed"
-          );
-        } catch (error) {
-          console.error(
-            "Confirmation email failed:",
-            error
-          );
-        }
+          "confirmed"
+        );
+      } catch (error) {
+        console.error(
+          "Confirmation email failed:",
+          error
+        );
       }
 
       return NextResponse.json({
@@ -1090,9 +891,15 @@ export async function POST(
         );
       }
 
-      await patchStatus(
-        registration._id,
+      if (registration.paymentStatus === "pay_on_site") {
+        return NextResponse.json(
+          { error: "Use Event check-in to collect and record payment at the venue." },
+          { status: 409 },
+        );
+      }
 
+      await patchStatus(
+        writeClient, registration,
         "checked-in"
       );
 
@@ -1131,8 +938,7 @@ export async function POST(
       }
 
       await patchStatus(
-        registration._id,
-
+        writeClient, registration,
         "confirmed"
       );
 
@@ -1177,14 +983,10 @@ export async function POST(
           registration
         );
 
-        await markPendingPaymentCancelled(
-          registration
-        );
       }
 
       await patchStatus(
-        registration._id,
-
+        writeClient, registration,
         "waitlist"
       );
 
@@ -1316,6 +1118,7 @@ export async function POST(
           .patch(
             registration._id
           )
+          .ifRevisionId(registration._rev)
           .set({
             status:
               "cancelled",
@@ -1396,6 +1199,9 @@ export async function POST(
       }
     );
   } catch (error) {
+    if (capacityConflict(error)) {
+      return NextResponse.json({ error: "Registration changed. Please try again." }, { status: 409 });
+    }
     console.error(
       "Event registration management error:",
       error

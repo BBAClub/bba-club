@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   useEffect,
   useState,
@@ -341,7 +343,7 @@ export default function PayOnSiteClient() {
         </p>
 
         <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em]">
-          We couldn't open this registration.
+          We couldn’t open this registration.
         </h1>
 
         <p className="mt-4 leading-7 text-[#8EA0B3]">
@@ -381,7 +383,7 @@ export default function PayOnSiteClient() {
         </p>
 
         <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] md:text-4xl">
-          You're all set.
+          You’re all set.
         </h1>
 
         <p className="mt-4 leading-7 text-[#A9B5C3]">
@@ -415,12 +417,12 @@ export default function PayOnSiteClient() {
           been sent to your email.
         </p>
 
-        <a
+        <Link
           href="/events"
           className="mt-7 inline-flex rounded-xl bg-[#0057FF] px-5 py-3 font-semibold text-white transition hover:bg-[#2874FF]"
         >
           View events
-        </a>
+        </Link>
       </div>
     );
   }
@@ -498,12 +500,12 @@ export default function PayOnSiteClient() {
           : "Confirm attendance & pay at the venue"}
       </button>
 
-      <a
+      <Link
         href="/events"
         className="mt-4 block text-center text-sm text-[#71869A] transition hover:text-white"
       >
-        Don't confirm
-      </a>
+        Don’t confirm
+      </Link>
     </div>
   );
 }

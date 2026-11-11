@@ -1,3 +1,4 @@
+import { trustedRequest } from "@/lib/admin/security";
 import {
   del,
   get,
@@ -32,6 +33,7 @@ type PrivateFile = {
 };
 
 type Submission = {
+  _rev: string;
   _id: string;
 
   status?: string;
@@ -261,6 +263,10 @@ function getPublicSlug(
 export async function POST(
   request: Request
 ) {
+  if (!trustedRequest(request)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
   try {
     /*
       ADMIN AUTH
@@ -383,6 +389,7 @@ export async function POST(
             && _id == $submissionId
           ][0] {
             _id,
+            _rev,
             status,
             name,
             email,
@@ -504,28 +511,11 @@ export async function POST(
       }
 
       await writeClient
-        .patch(
-          resourceId
+        .transaction()
+        .patch(resourceId, patch => patch.set({ isPublished: false }))
+        .patch(submissionId, patch =>
+          patch.ifRevisionId(submission._rev).unset(["publishedAt"])
         )
-        .set({
-          isPublished:
-            false,
-        })
-        .commit();
-
-      /*
-        publishedAt zároveň používáme
-        jako informaci, zda je resource
-        právě live.
-      */
-
-      await writeClient
-        .patch(
-          submissionId
-        )
-        .unset([
-          "publishedAt",
-        ])
         .commit();
 
       return NextResponse.json({
@@ -574,6 +564,7 @@ export async function POST(
         .patch(
           submissionId
         )
+        .ifRevisionId(submission._rev)
         .set({
           status:
             "rejected",
@@ -730,18 +721,10 @@ export async function POST(
       nenahrává.
     */
 
-    if (
-      existingResourceId
-    ) {
-      await writeClient
-        .patch(
-          existingResourceId
-        )
-        .set({
-          isPublished:
-            true,
-        })
-        .commit();
+    const publication = writeClient.transaction();
+    let newAssetId: string | undefined;
+    if (existingResourceId) {
+      publication.patch(existingResourceId, patch => patch.set({ isPublished: true }));
     } else {
       /*
         Pokud někdo schválený
@@ -877,6 +860,7 @@ export async function POST(
             .contentType ||
           "application/octet-stream";
 
+        const uploadStartedAt = new Date().toISOString();
         const asset =
           await writeClient
             .assets
@@ -891,6 +875,8 @@ export async function POST(
               }
             );
 
+        // Sanity can return an existing asset for identical bytes.
+        if (asset._createdAt >= uploadStartedAt) newAssetId = asset._id;
         publicFile = {
           _type:
             "file",
@@ -995,35 +981,37 @@ export async function POST(
           publicFile,
       };
 
-      await writeClient
-        .createIfNotExists(
-          studyResource
-        );
+      publication.createIfNotExists(studyResource);
     }
 
-    /*
-      MARK SUBMISSION
-      AS PUBLISHED
-    */
-
-    const publishedAt =
-      new Date()
-        .toISOString();
-
-    await writeClient
-      .patch(
-        submissionId
-      )
-      .set({
-        status:
-          "approved",
-
-        publishedResourceId:
-          resourceId,
-
-        publishedAt,
-      })
-      .commit();
+    try {
+      await publication
+        .patch(submissionId, patch =>
+          patch.ifRevisionId(submission._rev).set({
+            status: "approved",
+            publishedResourceId: resourceId,
+            publishedAt: new Date().toISOString(),
+          })
+        )
+        .commit();
+    } catch (error) {
+      // A rejected transaction is safe to inspect. A network error can hide a
+      // successful commit, so leave the asset alone when the outcome is unclear.
+      if (newAssetId && (error as { statusCode?: number })?.statusCode === 409) {
+        try {
+          const inUse = await writeClient.fetch<boolean>(
+            "count(*[references($assetId)]) > 0",
+            { assetId: newAssetId },
+            { cache: "no-store", perspective: "raw" },
+          );
+          // Sanity rejects deletion if a strong reference appeared after the query.
+          if (!inUse) await writeClient.delete(newAssetId);
+        } catch (cleanupError) {
+          console.warn("Could not clean up unpublished Study asset:", newAssetId, cleanupError);
+        }
+      }
+      throw error;
+    }
 
     /*
       PRIVATE BLOB CLEANUP
@@ -1076,6 +1064,13 @@ export async function POST(
   } catch (
     error
   ) {
+    if ((error as { statusCode?: number })?.statusCode === 409) {
+      return NextResponse.json(
+        { error: "Submission changed. Refresh and try again." },
+        { status: 409 }
+      );
+    }
+
     console.error(
       "Review submission error:",
       error

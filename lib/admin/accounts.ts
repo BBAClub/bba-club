@@ -380,8 +380,8 @@ export async function passwordSignIn(
   const email = schoolEmail(emailValue);
   if (!email || typeof passwordValue !== "string" || passwordValue.length > 128)
     throw new AccountError("Incorrect email or password.", 401);
-  await rateLimit("password-global", 100, 60 * 1000);
   await rateLimit(`password-login:${email}`, 10, 15 * 60 * 1000);
+  await rateLimit("password-global", 100, 60 * 1000);
   const doc = await db().getDocument<EncryptedDocument>(accountId(email));
   const stored = doc ? decodeStored(doc) : null;
   const valid = await verifyPassword(passwordValue, stored?.passwordHash);

@@ -1,3 +1,5 @@
+import { sendDueEventTickets } from "@/lib/email/sendDueEventTickets";
+
 import {
   timingSafeEqual,
 } from "node:crypto";
@@ -15,6 +17,8 @@ import {
   getComgatePaymentStatus,
   type ComgatePaymentStatus,
 } from "@/lib/payments/comgate";
+
+export const maxDuration = 120;
 
 export const runtime =
   "nodejs";
@@ -105,6 +109,7 @@ async function processThroughWebhook(
       {
         method:
           "POST",
+        signal: AbortSignal.timeout(15_000),
 
         headers: {
           "Content-Type":
@@ -131,6 +136,7 @@ async function processThroughWebhook(
       `Comgate webhook processing failed (${response.status}): ${text}`
     );
   }
+  return (await response.json()) as { confirmationEmailSent?: boolean };
 }
 
 export async function GET(
@@ -214,6 +220,13 @@ export async function GET(
     const now =
       new Date()
         .toISOString();
+
+    const ticketDelivery = await sendDueEventTickets().catch(error => {
+      console.error("Scheduled ticket check failed:", error instanceof Error ? error.name : "Unknown error");
+      return { error: "Could not process scheduled tickets." };
+    });
+    const ticketDeliveryFailed =
+      "error" in ticketDelivery || ticketDelivery.failed > 0;
 
     const registrations =
       await client.fetch<
@@ -299,7 +312,7 @@ export async function GET(
       }
 
       try {
-        let payment =
+        const payment =
           await getComgatePaymentStatus(
             transId
           );
@@ -433,9 +446,33 @@ export async function GET(
       }
     }
 
+    const receipts = await client.fetch<{ paymentTransactionId: string }[]>(
+      `*[_type == "eventRegistration" && status in ["confirmed", "checked-in"] &&
+        paymentStatus == "paid" && paymentProvider == "comgate" &&
+        defined(paymentTransactionId) && !defined(confirmationEmailSentAt) &&
+        paidAt >= $recent && _updatedAt <= $retryBefore]
+        | order(_updatedAt asc)[0...5] { paymentTransactionId }`,
+      {
+        recent: new Date(Date.now() - 23 * 60 * 60_000).toISOString(),
+        retryBefore: new Date(Date.now() - 5 * 60_000).toISOString(),
+      },
+      { cache: "no-store" },
+    );
+    let receiptRetryErrors = 0;
+    for (const { paymentTransactionId } of receipts) {
+      try {
+        const result = await processThroughWebhook(request, paymentTransactionId);
+        if (!result.confirmationEmailSent) receiptRetryErrors++;
+      } catch {
+        receiptRetryErrors++;
+      }
+    }
+
+    const failed = ticketDeliveryFailed || receiptRetryErrors > 0 || results.some(item => item.result === "error");
     return NextResponse.json({
-      success:
-        true,
+      ticketDelivery,
+      receiptRetries: { attempted: receipts.length, errors: receiptRetryErrors },
+      success: !failed,
 
       checked:
         registrations.length,
@@ -476,7 +513,7 @@ export async function GET(
         ).length,
 
       results,
-    });
+    }, { status: failed ? 503 : 200 });
   } catch (error) {
     console.error(
       "Expired payment cron failed:",

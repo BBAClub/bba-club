@@ -1,3 +1,6 @@
+import { comgateAttemptDocument } from "@/lib/payments/comgateAttempt";
+import { linkComgateCheckout } from "@/lib/payments/linkComgateCheckout";
+import { capacityConflict, capacityTransaction, readEventCapacity } from "@/lib/events/capacity";
 import "server-only";
 
 import {
@@ -69,6 +72,7 @@ export type PromotedRegistration = {
 
 type Registration = {
   _id: string;
+  _rev: string;
 
   firstName?: string;
   lastName?: string;
@@ -175,11 +179,6 @@ function candidateNeedsOnlinePayment(
   event:
     PromotionEvent
 ) {
-  const price =
-    getEventPrice(
-      event
-    );
-
   if (
     !eventUsesOnlinePayments(
       event
@@ -232,50 +231,6 @@ function candidateNeedsOnlinePayment(
   }
 
   return true;
-}
-
-async function ensureTicketCode(
-  registration:
-    Registration
-) {
-  if (
-    registration.ticketCode
-  ) {
-    return registration
-      .ticketCode;
-  }
-
-  const token =
-    process.env
-      .SANITY_API_WRITE_TOKEN;
-
-  if (!token) {
-    throw new Error(
-      "Missing SANITY_API_WRITE_TOKEN."
-    );
-  }
-
-  const ticketCode =
-    randomUUID();
-
-  const writeClient =
-    client.withConfig({
-      token,
-
-      useCdn:
-        false,
-    });
-
-  await writeClient
-    .patch(
-      registration._id
-    )
-    .set({
-      ticketCode,
-    })
-    .commit();
-
-  return ticketCode;
 }
 
 async function sendConfirmedEmail(
@@ -387,6 +342,8 @@ async function promoteWithoutOnlinePayment(
   registration:
     Registration,
 
+  capacityRevision: string,
+
   event:
     PromotionEvent
 ) {
@@ -408,10 +365,7 @@ async function promoteWithoutOnlinePayment(
         false,
     });
 
-  const ticketCode =
-    await ensureTicketCode(
-      registration
-    );
+  const ticketCode = registration.ticketCode || randomUUID();
 
   const price =
     getEventPrice(
@@ -454,10 +408,8 @@ async function promoteWithoutOnlinePayment(
       );
   }
 
-  await writeClient
-    .patch(
-      registration._id
-    )
+  await capacityTransaction(writeClient, event._id, capacityRevision)
+    .patch(registration._id, patch => patch.ifRevisionId(registration._rev)
     .set({
       status:
         "confirmed",
@@ -472,7 +424,8 @@ async function promoteWithoutOnlinePayment(
       "paymentRedirectUrl",
       "paymentCreatedAt",
     ])
-    .commit();
+    )
+    .commit({ visibility: "sync" });
 
   try {
     await sendConfirmedEmail(
@@ -511,6 +464,8 @@ async function promoteWithoutOnlinePayment(
 async function promoteWithComgate(
   registration:
     Registration,
+
+  capacityRevision: string,
 
   event:
     PromotionEvent,
@@ -560,11 +515,9 @@ async function promoteWithComgate(
         false,
     });
 
-  const ticketCode =
-    await ensureTicketCode(
-      registration
-    );
+  const ticketCode = registration.ticketCode || randomUUID();
 
+  const refId = randomUUID();
   const paymentCreatedAt =
     new Date();
 
@@ -583,10 +536,8 @@ async function promoteWithComgate(
     count towards event capacity.
   */
 
-  await writeClient
-    .patch(
-      registration._id
-    )
+  await capacityTransaction(writeClient, event._id, capacityRevision)
+    .patch(registration._id, patch => patch.ifRevisionId(registration._rev)
     .set({
       status:
         "pending-payment",
@@ -610,17 +561,22 @@ async function promoteWithComgate(
           .toISOString(),
 
       reservationExpiresAt,
+      paymentAttemptRef: refId,
 
       ticketCode,
     })
     .unset([
       "checkedInAt",
+      "confirmationEmailSentAt",
+      "confirmationEmailId",
       "paymentTransactionId",
       "paymentRedirectUrl",
       "paidAt",
       "refundedAt",
     ])
-    .commit();
+    )
+    .create(comgateAttemptDocument(refId, registration._id, event._id, price, getEventCurrency(event)))
+    .commit({ visibility: "sync" });
 
   const origin =
     normalizeOrigin(
@@ -652,189 +608,130 @@ async function promoteWithComgate(
     `?payment=pending` +
     `&registration=${encodedRegistrationId}`;
 
-  const refId =
-    registration._id.replace(
-      /^private\.event-registration-/,
-      ""
+
+
+  const payment =
+    await createComgatePayment(
+      {
+        amount:
+        price,
+
+      currency:
+        getEventCurrency(
+          event
+        ),
+
+      refId,
+
+        email:
+          registration.email,
+
+        fullName:
+          `${registration.firstName} ${registration.lastName ?? ""}`.trim(),
+
+        eventTitle:
+          event.title,
+
+        paidUrl,
+
+        cancelledUrl,
+
+        pendingUrl,
+      }
     );
 
+  await linkComgateCheckout(writeClient, registration._id, refId, payment);
+
   try {
-    const payment =
-      await createComgatePayment(
-        {
-          amount:
-          price,
+    await sendEventPaymentRequestEmail(
+      {
+        registrationId:
+          registration._id,
 
-        currency:
-          getEventCurrency(
-            event
-          ),
+        ticketCode,
 
-        refId,
-
-          email:
-            registration.email,
-
-          fullName:
-            `${registration.firstName} ${registration.lastName ?? ""}`.trim(),
-
-          eventTitle:
-            event.title,
-
-          paidUrl,
-
-          cancelledUrl,
-
-          pendingUrl,
-        }
-      );
-
-    /*
-      A waitlist email may already
-      have filled these fields.
-
-      Clear them now so the PAID
-      webhook will still send the
-      real ticket email.
-    */
-
-    await writeClient
-      .patch(
-        registration._id
-      )
-      .set({
         paymentTransactionId:
           payment.transId,
 
-        paymentRedirectUrl:
+        paymentUrl:
           payment.redirectUrl,
-      })
-      .unset([
-        "confirmationEmailSentAt",
-        "confirmationEmailId",
-      ])
-      .commit();
 
-    try {
-      await sendEventPaymentRequestEmail(
-        {
-          registrationId:
-            registration._id,
+        reservationExpiresAt,
 
-          ticketCode,
+        amount:
+        price,
 
-          paymentTransactionId:
-            payment.transId,
+      currency:
+        getEventCurrency(
+          event
+        ),
 
-          paymentUrl:
-            payment.redirectUrl,
+        firstName:
+          registration.firstName,
 
-          reservationExpiresAt,
+        email:
+          registration.email,
 
-          amount:
-          price,
+        eventTitle:
+          event.title,
 
-        currency:
-          getEventCurrency(
-            event
-          ),
+        date:
+          event.date,
 
-          firstName:
-            registration.firstName,
+        time:
+          event.time,
 
-          email:
-            registration.email,
+        venue:
+          event.venue,
 
-          eventTitle:
-            event.title,
+        location:
+          event.location,
 
-          date:
-            event.date,
-
-          time:
-            event.time,
-
-          venue:
-            event.venue,
-
-          location:
-            event.location,
-
-          address:
-            event.address,
-        }
-      );
-    } catch (error) {
-      /*
-        Do not cancel the payment
-        merely because email delivery
-        failed.
-
-        The transaction remains
-        consistent and can be handled
-        manually if necessary.
-      */
-
-      console.error(
-        "Payment request email failed:",
-        error
-      );
-    }
-
-    return {
-      _id:
-        registration._id,
-
-      firstName:
-        registration.firstName,
-
-      lastName:
-        registration.lastName,
-
-      email:
-        registration.email,
-
-      status:
-        "pending-payment" as const,
-
-      paymentRequired:
-        true,
-
-      paymentUrl:
-        payment.redirectUrl,
-
-      reservationExpiresAt,
-    };
+        address:
+          event.address,
+      }
+    );
   } catch (error) {
     /*
-      Comgate did not create a usable
-      transaction.
+      Do not cancel the payment
+      merely because email delivery
+      failed.
 
-      Put the person back on the
-      waitlist and release the seat.
+      The transaction remains
+      consistent and can be handled
+      manually if necessary.
     */
 
-    await writeClient
-      .patch(
-        registration._id
-      )
-      .set({
-        status:
-          "waitlist",
-
-        paymentStatus:
-          "failed",
-      })
-      .unset([
-        "paymentTransactionId",
-        "paymentRedirectUrl",
-        "paymentCreatedAt",
-        "reservationExpiresAt",
-      ])
-      .commit();
-
-    throw error;
+    console.error(
+      "Payment request email failed:",
+      error
+    );
   }
+
+  return {
+    _id:
+      registration._id,
+
+    firstName:
+      registration.firstName,
+
+    lastName:
+      registration.lastName,
+
+    email:
+      registration.email,
+
+    status:
+      "pending-payment" as const,
+
+    paymentRequired:
+      true,
+
+    paymentUrl:
+      payment.redirectUrl,
+
+    reservationExpiresAt,
+  };
 }
 
 export async function promoteWaitlist({
@@ -878,71 +775,10 @@ export async function promoteWaitlist({
     return [];
   }
 
-  const now =
-    new Date()
-      .toISOString();
-
-  /*
-    Active payment reservations
-    count as occupied seats.
-  */
-
-  const occupied =
-    await client.fetch<number>(
-      `
-        count(
-          *[
-            _type ==
-              "eventRegistration"
-
-            && event._ref ==
-              $eventId
-
-            && (
-              status in [
-                "confirmed",
-                "checked-in"
-              ]
-
-              ||
-
-              (
-                status ==
-                  "pending-payment"
-
-                && paymentStatus ==
-                  "pending"
-
-                && defined(
-                  reservationExpiresAt
-                )
-
-                && reservationExpiresAt >
-                  $now
-              )
-            )
-          ]
-        )
-      `,
-      {
-        eventId,
-
-        now,
-      }
-    );
-
-  const freeSpots =
-    Math.max(
-      event.capacity -
-        occupied,
-      0
-    );
-
-  if (
-    freeSpots <= 0
-  ) {
-    return [];
-  }
+  const writeClient = client.withConfig({ token, useCdn: false });
+  const initial = await readEventCapacity(writeClient, eventId);
+  if (!initial?.capacity || initial.capacity <= initial.occupied) return [];
+  const freeSpots = initial.capacity - initial.occupied;
 
   /*
     Oldest waitlist entries always
@@ -950,7 +786,7 @@ export async function promoteWaitlist({
   */
 
   const waitlist =
-    await client.fetch<
+    await writeClient.fetch<
       Registration[]
     >(
       `
@@ -968,6 +804,7 @@ export async function promoteWaitlist({
           registeredAt asc
         ) {
           _id,
+          _rev,
 
           firstName,
           lastName,
@@ -1010,6 +847,10 @@ export async function promoteWaitlist({
     of candidates
   ) {
     try {
+      const capacity = await readEventCapacity(writeClient, eventId);
+      if (!capacity?.capacity || capacity.registrationStatus === "closed" ||
+          capacity.occupied >= capacity.capacity) break;
+
       if (
         candidateNeedsOnlinePayment(
           candidate,
@@ -1019,6 +860,7 @@ export async function promoteWaitlist({
         const result =
           await promoteWithComgate(
             candidate,
+            capacity._rev,
             event,
             siteOrigin
           );
@@ -1033,6 +875,7 @@ export async function promoteWaitlist({
       const result =
         await promoteWithoutOnlinePayment(
           candidate,
+          capacity._rev,
           event
         );
 
@@ -1040,6 +883,7 @@ export async function promoteWaitlist({
         result
       );
     } catch (error) {
+      if (capacityConflict(error)) break;
       console.error(
         "Waitlist promotion failed:",
         {

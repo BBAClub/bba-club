@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import {
   ChangeEvent,
@@ -241,24 +242,8 @@ export default function AdminPlaceForm({
     );
 
   useEffect(() => {
-    if (!coverFile) {
-      setPreviewUrl(null);
-      return;
-    }
-
-    const url =
-      URL.createObjectURL(
-        coverFile
-      );
-
-    setPreviewUrl(url);
-
-    return () => {
-      URL.revokeObjectURL(
-        url
-      );
-    };
-  }, [coverFile]);
+    if (previewUrl) return () => URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const displayedImage =
     previewUrl ||
@@ -303,6 +288,7 @@ export default function AdminPlaceForm({
     }
 
     setError(null);
+    setPreviewUrl(URL.createObjectURL(file));
     setCoverFile(file);
   }
 
@@ -669,8 +655,9 @@ export default function AdminPlaceForm({
       >
         {displayedImage ? (
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#071422]">
-            <div className="aspect-video overflow-hidden">
-              <img
+            <div className="relative aspect-video overflow-hidden">
+              <Image
+                fill sizes="720px" unoptimized={displayedImage.startsWith("blob:")}
                 src={
                   displayedImage
                 }
@@ -695,6 +682,7 @@ export default function AdminPlaceForm({
               <button
                 type="button"
                 onClick={() => {
+                  setPreviewUrl(null);
                   setCoverFile(null);
                   setCoverAssetId("");
                   setExistingCoverUrl("");

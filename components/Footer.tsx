@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 
@@ -134,7 +135,8 @@ export default function Footer() {
               className="mt-4 block w-fit opacity-80 transition hover:opacity-100"
               aria-label="Comgate payment gateway"
             >
-              <img
+              <Image
+                width={848} height={200} sizes="230px"
                 src="/payments/comgate-footer-dark.png"
                 alt="Comgate payment gateway"
                 className="h-auto w-full max-w-[230px]"

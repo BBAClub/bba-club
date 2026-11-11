@@ -70,7 +70,7 @@ export default async function StudyAdminPage() {
           rows={data.submissions.map((item) => ({
             id: item._id,
             cells: [
-              <div className="max-w-sm whitespace-normal">
+              <div key={item._id} className="max-w-sm whitespace-normal">
                 <p className="font-medium">{item.title || "Untitled"}</p>
                 {(item.description || /^https?:\/\//i.test(item.url || "")) && (
                   <details className="mt-2 text-[#A9B5C3]">

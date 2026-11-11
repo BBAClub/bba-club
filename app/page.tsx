@@ -1,4 +1,5 @@
-import HomePageClient from "@/components/HomePageClient";
+import { connection } from "next/server";
+import HomePage from "@/components/HomePage";
 
 import {
   client,
@@ -17,9 +18,6 @@ import type {
 import type {
   Place,
 } from "@/data/places";
-
-export const dynamic =
-  "force-dynamic";
 
 type SanityEvent = {
   _id: string;
@@ -373,6 +371,7 @@ function convertSanityPlace(
 }
 
 export default async function Home() {
+  await connection();
   const today =
     getTodayInPrague();
 
@@ -385,19 +384,19 @@ export default async function Home() {
       client.fetch<
         SanityEvent[]
       >(
-        EVENTS_QUERY
+        EVENTS_QUERY, {}, { next: { revalidate: 60 } }
       ),
 
       client.fetch<
         SanityPlace[]
       >(
-        PLACES_QUERY
+        PLACES_QUERY, {}, { next: { revalidate: 60 } }
       ),
 
       client.fetch<
         SanityHomepageSettings | null
       >(
-        HOMEPAGE_SETTINGS_QUERY
+        HOMEPAGE_SETTINGS_QUERY, {}, { next: { revalidate: 60 } }
       ),
     ]);
 
@@ -425,8 +424,11 @@ export default async function Home() {
         (
           event
         ): event is Event =>
-          event !== null
-      );
+          event !== null && event.status === "upcoming"
+      )
+      .map(({ coverImageAlt, coverImageUrl, date, description, gradient, label, location, month, price, slug, time, title }) => ({
+        coverImageAlt, coverImageUrl, date, description, gradient, label, location, month, price, slug, time, title,
+      }));
 
   const places =
     sanityPlaces
@@ -438,10 +440,11 @@ export default async function Home() {
           place
         ): place is Place =>
           place !== null
-      );
+      )
+      .slice(0, 6);
 
   return (
-    <HomePageClient
+    <HomePage
       events={events}
       places={places}
       heroImageUrl={

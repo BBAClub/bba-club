@@ -1,8 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   useEffect,
-  useMemo,
+  useEffectEvent,
+  useRef,
   useState,
 } from "react";
 
@@ -103,6 +106,8 @@ type EventResponse = {
 
   event?:
     EventSummary;
+
+  hasNextPage?: boolean;
 
   registrations?:
     Registration[];
@@ -377,6 +382,7 @@ function csvCell(
 }
 
 export default function EventDashboardClient() {
+  const router = useRouter();
   const [
     events,
     setEvents,
@@ -516,8 +522,7 @@ export default function EventDashboardClient() {
       response.status ===
       401
     ) {
-      window.location.href =
-        "/admin/login?next=/admin/events";
+      router.replace("/admin/login?next=/admin/events");
     }
 
     return {
@@ -530,13 +535,23 @@ export default function EventDashboardClient() {
     LOAD ONE EVENT
   */
 
+  const eventRequest = useRef(0);
+  const [exporting, setExporting] = useState(false);
+  const [registrationPage, setRegistrationPage] = useState(0);
+  const [hasNextRegistrationPage, setHasNextRegistrationPage] = useState(false);
+  const [appliedSearch, setAppliedSearch] = useState("");
+
   async function loadEvent(
-    eventId: string
+    eventId: string,
+    page = 0,
+    query = appliedSearch,
+    filter = statusFilter,
   ) {
     if (!eventId) {
       return;
     }
 
+    const requestId = ++eventRequest.current;
     setLoadingEvent(
       true
     );
@@ -552,9 +567,10 @@ export default function EventDashboardClient() {
           EventResponse
         >({
           action: "event",
-          eventId,
+          eventId, page, search: query, status: filter,
         });
 
+      if (requestId !== eventRequest.current) return;
       if (!response.ok) {
         setError(
           data.error ??
@@ -564,11 +580,14 @@ export default function EventDashboardClient() {
         return;
       }
 
+      setRegistrationPage(page);
+      setHasNextRegistrationPage(Boolean(data.hasNextPage));
       setRegistrations(
         data.registrations ??
           []
       );
     } catch (error) {
+      if (requestId !== eventRequest.current) return;
       console.error(
         "Load event error:",
         error
@@ -578,9 +597,7 @@ export default function EventDashboardClient() {
         "Could not load event."
       );
     } finally {
-      setLoadingEvent(
-        false
-      );
+      if (requestId === eventRequest.current) setLoadingEvent(false);
     }
   }
 
@@ -697,16 +714,14 @@ export default function EventDashboardClient() {
     authentication before rendering.
   */
 
-  useEffect(() => {
-    void (
-      async () => {
-        await loadOverview();
+  const loadInitialOverview = useEffectEvent(async () => {
+    await loadOverview();
+    setInitialLoading(false);
+  });
 
-        setInitialLoading(
-          false
-        );
-      }
-    )();
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadInitialOverview(), 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   /*
@@ -721,6 +736,7 @@ export default function EventDashboardClient() {
     );
 
     setSearch("");
+    setAppliedSearch("");
 
     setStatusFilter(
       "all"
@@ -731,7 +747,7 @@ export default function EventDashboardClient() {
     );
 
     await loadEvent(
-      eventId
+      eventId, 0, "", "all"
     );
   }
 
@@ -789,8 +805,7 @@ export default function EventDashboardClient() {
         response.status ===
         401
       ) {
-        window.location.href =
-          "/admin/login?next=/admin/events";
+        router.replace("/admin/login?next=/admin/events");
 
         return;
       }
@@ -877,60 +892,37 @@ export default function EventDashboardClient() {
     SEARCH + FILTERS
   */
 
-  const filteredRegistrations =
-    useMemo(() => {
-      const query =
-        search
-          .trim()
-          .toLowerCase();
-
-      return registrations.filter(
-        (
-          registration
-        ) => {
-          if (
-            statusFilter !==
-              "all" &&
-            registration.status !==
-              statusFilter
-          ) {
-            return false;
-          }
-
-          if (!query) {
-            return true;
-          }
-
-          const haystack = [
-            registration.firstName,
-            registration.lastName,
-            registration.email,
-            registration.university,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-
-          return haystack.includes(
-            query
-          );
-        }
-      );
-    }, [
-      registrations,
-      search,
-      statusFilter,
-    ]);
+  const filteredRegistrations = registrations;
 
   /*
     CSV EXPORT
   */
 
-  function exportCsv() {
+  async function exportCsv() {
     if (
       !selectedEvent
     ) {
       return;
+    }
+
+    setExporting(true);
+    const matches: Registration[] = [];
+    try {
+      for (let page = 0; page <= 10_000; page++) {
+        const { response, data } = await dashboardApi<EventResponse>({
+          action: "event", eventId: selectedEvent._id,
+          page, search: appliedSearch, status: statusFilter,
+        });
+        if (!response.ok) throw new Error(data.error ?? "Could not export registrations.");
+        matches.push(...(data.registrations ?? []));
+        if (!data.hasNextPage) break;
+        if (page === 10_000) throw new Error("Too many registrations to export.");
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not export registrations.");
+      return;
+    } finally {
+      setExporting(false);
     }
 
     const rows = [
@@ -944,7 +936,7 @@ export default function EventDashboardClient() {
         "Checked in at",
       ],
 
-      ...filteredRegistrations.map(
+      ...matches.map(
         (
           registration
         ) => [
@@ -1369,18 +1361,21 @@ export default function EventDashboardClient() {
                         exportCsv
                       }
                       disabled={
-                        filteredRegistrations.length ===
-                        0
+                        exporting || loadingEvent || filteredRegistrations.length === 0
                       }
                       className="rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-[#A9B5C3] transition hover:bg-white/5 hover:text-white disabled:opacity-40"
                     >
-                      Export CSV
+                      {exporting ? "Exporting…" : "Export CSV"}
                     </button>
                   </div>
 
                   {/* SEARCH */}
 
-                  <div className="mt-6">
+                  <form className="mt-6 flex gap-2" onSubmit={event => {
+                    event.preventDefault();
+                    setAppliedSearch(search);
+                    void loadEvent(selectedEventId, 0, search);
+                  }}>
                     <input
                       value={
                         search
@@ -1396,7 +1391,8 @@ export default function EventDashboardClient() {
                       placeholder="Search name, email or university..."
                       className="w-full rounded-xl border border-white/10 bg-[#071422] px-4 py-3 outline-none focus:border-[#0057FF]"
                     />
-                  </div>
+                    <button type="submit" disabled={loadingEvent} className="rounded-xl border border-white/10 px-4">Search</button>
+                  </form>
 
                   {/* FILTERS */}
 
@@ -1441,11 +1437,10 @@ export default function EventDashboardClient() {
                             value
                           }
                           type="button"
-                          onClick={() =>
-                            setStatusFilter(
-                              value
-                            )
-                          }
+                          onClick={() => {
+                            setStatusFilter(value);
+                            void loadEvent(selectedEventId, 0, appliedSearch, value);
+                          }}
                           className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${
                             statusFilter ===
                             value
@@ -1690,17 +1685,17 @@ export default function EventDashboardClient() {
                     </>
                   )}
 
-                  <p className="mt-5 text-xs text-[#53687D]">
-                    Showing{" "}
-                    {
-                      filteredRegistrations.length
-                    }{" "}
-                    of{" "}
-                    {
-                      registrations.length
-                    }{" "}
-                    registrations.
-                  </p>
+                  <div className="mt-5 flex items-center gap-4 text-sm">
+                    <button type="button" disabled={loadingEvent || registrationPage === 0}
+                      onClick={() => void loadEvent(selectedEventId, registrationPage - 1)}>
+                      Previous
+                    </button>
+                    <span>Page {registrationPage + 1}</span>
+                    <button type="button" disabled={loadingEvent || !hasNextRegistrationPage}
+                      onClick={() => void loadEvent(selectedEventId, registrationPage + 1)}>
+                      Next
+                    </button>
+                  </div>
                 </section>
               </>
             )}
@@ -1807,6 +1802,14 @@ export default function EventDashboardClient() {
                   )}
                 </div>
               </div>
+
+              {selectedRegistration.status === "waitlist" &&
+                selectedRegistration.paymentStatus === "paid" && (
+                  <p className="mt-3 text-sm text-amber-200">
+                    Payment received. This guest is on the waitlist and has no active ticket.
+                    Review the payment in Comgate if a place cannot be offered.
+                  </p>
+                )}
 
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
                 <span className="text-xs text-[#71869A]">

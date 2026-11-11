@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import Link from "next/link";
 
@@ -179,9 +180,10 @@ export default function AdminPlacesList({
                 className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0B1A29] transition hover:border-[#0057FF]/50"
               >
                 <div className="grid h-full grid-cols-[110px_1fr] sm:grid-cols-[160px_1fr]">
-                  <div className="flex min-h-36 items-center justify-center overflow-hidden bg-[#091725]">
+                  <div className="relative flex min-h-36 items-center justify-center overflow-hidden bg-[#091725]">
                     {place.coverImageUrl ? (
-                      <img
+                      <Image
+                        fill sizes="(max-width: 640px) 110px, 160px"
                         src={
                           place.coverImageUrl
                         }

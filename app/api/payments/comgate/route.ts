@@ -1,3 +1,5 @@
+import { comgateAttemptId, isComgateAttemptReference } from "@/lib/payments/comgateAttempt";
+import { capacityTransaction, paidRegistrationStatus, readEventCapacity } from "@/lib/events/capacity";
 import {
   NextResponse,
 } from "next/server";
@@ -71,6 +73,8 @@ type Registration = {
   paymentProvider?: string;
 
   paymentTransactionId?: string;
+  paymentAttemptRef?: string;
+  reservationExpiresAt?: string;
 
   paymentAmount?: number;
 
@@ -156,7 +160,8 @@ function getSiteOrigin(
 }
 
 async function getRegistration(
-  transId: string
+  transId: string,
+  attemptRef?: string,
 ) {
   return client.fetch<
     Registration | null
@@ -166,8 +171,12 @@ async function getRegistration(
         _type ==
           "eventRegistration"
 
-        && paymentTransactionId ==
-          $transId
+        && select(
+          defined($attemptRef) => paymentAttemptRef == $attemptRef &&
+            !defined(paymentTransactionId) && paymentProvider == "comgate" &&
+            status == "pending-payment" && paymentStatus == "pending",
+          paymentTransactionId == $transId
+        )
       ][0] {
         _id,
         _rev,
@@ -177,6 +186,8 @@ async function getRegistration(
         paymentProvider,
 
         paymentTransactionId,
+        paymentAttemptRef,
+        reservationExpiresAt,
         paymentAmount,
         paymentCurrency,
 
@@ -211,8 +222,9 @@ async function getRegistration(
       }
     `,
     {
-      transId,
-    }
+      transId, attemptRef: attemptRef ?? null,
+    },
+    { cache: "no-store" },
   );
 }
 
@@ -397,6 +409,46 @@ export async function POST(
         transId
       );
 
+    if (!registration && payment.refId) {
+      registration = await getRegistration(transId, payment.refId);
+    }
+
+    if (!registration && payment.refId && isComgateAttemptReference(payment.refId)) {
+      const store = client.withConfig({ token: writeToken, useCdn: false });
+      const attempt = await store.getDocument<{
+        _rev: string;
+        registrationId: string;
+        amountInMinorUnits: number;
+        currency: string;
+        latePaidTransactionId?: string;
+      }>(comgateAttemptId(payment.refId));
+      if (attempt) {
+        if (Number(payment.price) !== attempt.amountInMinorUnits || payment.curr !== attempt.currency ||
+            (attempt.latePaidTransactionId && attempt.latePaidTransactionId !== transId)) {
+          return NextResponse.json({ error: "Payment does not match the stored attempt." }, { status: 409 });
+        }
+        const current = await store.getDocument<{
+          status?: string;
+          paymentAttemptRef?: string;
+          paymentTransactionId?: string;
+        }>(attempt.registrationId);
+        if (current?.paymentTransactionId === transId ||
+            (current?.paymentAttemptRef === payment.refId && current.status === "pending-payment")) {
+          return NextResponse.json({ error: "Payment is still being linked." }, { status: 503 });
+        }
+
+        if (payment.status === "PAID" && !attempt.latePaidTransactionId) {
+          await store.patch(comgateAttemptId(payment.refId)).ifRevisionId(attempt._rev)
+            .set({
+              latePaidTransactionId: transId,
+              latePaidRecordedAt: new Date().toISOString(),
+            })
+            .commit({ visibility: "sync" });
+        }
+        return NextResponse.json({ success: true, status: payment.status, registrationChanged: false });
+      }
+    }
+
     if (!registration) {
       /*
         Returning non-2xx makes
@@ -457,7 +509,7 @@ export async function POST(
     }
 
     const expectedRefId =
-      getExpectedRefId(
+      registration.paymentAttemptRef ?? getExpectedRefId(
         registration._id
       );
 
@@ -610,6 +662,14 @@ export async function POST(
           false,
       });
 
+    if (!registration.paymentTransactionId) {
+      const linked = await writeClient.patch(registration._id)
+        .ifRevisionId(registration._rev)
+        .set({ paymentTransactionId: transId })
+        .commit({ visibility: "sync" });
+      registration = { ...registration, _rev: linked._rev, paymentTransactionId: transId };
+    }
+
     /*
       ==================================
       PENDING
@@ -678,16 +738,15 @@ export async function POST(
       */
 
       if (
-        registration
-          .paymentStatus ===
-        "paid"
+        registration.paymentStatus === "paid" ||
+        registration.paymentStatus === "refunded"
       ) {
         return NextResponse.json({
           success:
             true,
 
           status:
-            "paid",
+            registration.paymentStatus,
         });
       }
 
@@ -695,6 +754,7 @@ export async function POST(
         .patch(
           registration._id
         )
+        .ifRevisionId(registration._rev)
         .set({
           status:
             "cancelled",
@@ -889,33 +949,31 @@ export async function POST(
           .paymentStatus !==
         "paid"
       ) {
-        const finalStatus =
-          registration.status ===
-            "checked-in"
-            ? "checked-in"
-            : "confirmed";
+        const eventId = registration.event?._id;
+        if (!eventId) throw new Error("Paid registration has no event.");
+        const paidAt = new Date().toISOString();
+        const capacity = await readEventCapacity(writeClient, eventId, paidAt);
+        if (!capacity) throw new Error("Could not read capacity for paid registration.");
 
-        await writeClient
-          .patch(
-            registration._id
-          )
-          .set({
-            status:
-              finalStatus,
-
-            paymentStatus:
-              "paid",
-
-            paidAt:
-              new Date()
-                .toISOString(),
-
-            ticketCode,
+        const finalStatus = paidRegistrationStatus(registration, capacity, paidAt);
+        const { _id, _rev } = registration;
+        await capacityTransaction(writeClient, eventId, capacity._rev)
+          .patch(_id, patch => {
+            const update = patch.ifRevisionId(_rev).set({
+              status: finalStatus,
+              paymentStatus: "paid",
+              paidAt,
+            });
+            return finalStatus === "waitlist"
+              ? update.unset(["reservationExpiresAt", "ticketCode", "paymentRedirectUrl"])
+              : update.set({ ticketCode }).unset(["reservationExpiresAt"]);
           })
-          .unset([
-            "reservationExpiresAt",
-          ])
-          .commit();
+          .commit({ visibility: "sync" });
+
+        if (finalStatus === "waitlist") {
+          console.warn("Paid registration moved to waitlist because the event is full:", _id);
+          return NextResponse.json({ success: true, status: "paid", registrationStatus: "waitlist" });
+        }
 
         /*
           Reload the document before
@@ -933,6 +991,11 @@ export async function POST(
         }
       }
 
+      // A repeated payment notification must not issue a ticket for a paid waitlist entry.
+      if (registration.status === "waitlist") {
+        return NextResponse.json({ success: true, status: "paid", registrationStatus: "waitlist" });
+      }
+
       /*
         CONFIRMATION EMAIL
 
@@ -946,6 +1009,7 @@ export async function POST(
         another ticket.
       */
 
+      let confirmationEmailSent = Boolean(registration.confirmationEmailSentAt);
       if (
         !registration
           .confirmationEmailSentAt
@@ -994,6 +1058,9 @@ export async function POST(
                   registration
                     .email,
 
+                paidAmount: registration.paymentAmount,
+                paidCurrency: expectedCurrency === "EUR" ? "EUR" : "CZK",
+
                 eventTitle:
                   event.title,
 
@@ -1041,35 +1108,35 @@ export async function POST(
               })
               .commit();
           } else {
+            const emailPatch:
+              Record<
+                string,
+                string
+              > = {
+                confirmationEmailSentAt:
+                  new Date()
+                    .toISOString(),
+              };
 
-          const emailPatch:
-            Record<
-              string,
-              string
-            > = {
-              confirmationEmailSentAt:
-                new Date()
-                  .toISOString(),
-            };
+            if (
+              emailResult.emailId
+            ) {
+              emailPatch.confirmationEmailId =
+                emailResult.emailId;
+            }
 
-          if (
-            emailResult.emailId
-          ) {
-            emailPatch.confirmationEmailId =
-              emailResult.emailId;
-          }
+            await writeClient
+              .patch(
+                registration._id
+              )
+              .set({
+                ...emailPatch,
 
-          await writeClient
-            .patch(
-              registration._id
-            )
-            .set({
-              ...emailPatch,
-
-              emailDeliveryStatus:
-                "sent",
-            })
-            .commit();
+                emailDeliveryStatus:
+                  "sent",
+              })
+              .commit();
+            confirmationEmailSent = true;
           }
         } catch (
           emailError
@@ -1106,6 +1173,7 @@ export async function POST(
 
         status:
           "paid",
+        confirmationEmailSent,
       });
     }
 

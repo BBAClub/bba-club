@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import {
   FormEvent,
   useEffect,
@@ -135,7 +137,8 @@ function statusLabel(
   }
 }
 
-export default function CheckInClient() {
+export default function CheckInClient({ eventId }: { eventId: string }) {
+  const router = useRouter();
   const [
     scannerRunning,
     setScannerRunning,
@@ -212,7 +215,7 @@ export default function CheckInClient() {
 
           body:
             JSON.stringify(
-              payload
+              { ...payload, eventId }
             ),
         }
       );
@@ -225,8 +228,7 @@ export default function CheckInClient() {
       response.status ===
       401
     ) {
-      window.location.href =
-        "/admin/login?next=/admin/check-in";
+      router.replace("/admin/login?next=/admin/check-in");
     }
 
     return {

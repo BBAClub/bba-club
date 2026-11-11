@@ -172,6 +172,13 @@ export const eventType = defineType({
     }),
 
     defineField({
+      name: "capacityRevision",
+      type: "string",
+      hidden: true,
+      readOnly: true,
+    }),
+
+    defineField({
       name: "capacity",
       title: "Capacity",
       type: "number",

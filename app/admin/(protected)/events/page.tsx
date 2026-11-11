@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { requireAdminPermission } from "@/lib/admin/auth";
 import Link from "next/link";
 
@@ -389,7 +390,8 @@ export default async function EventsPage() {
                     <div className="admin-event-card-layout">
                       <div className="admin-event-card-image">
                         {event.coverImageUrl ? (
-                          <img
+                          <Image
+                            fill sizes="320px"
                             src={
                               event.coverImageUrl
                             }

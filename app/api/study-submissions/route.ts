@@ -1,3 +1,4 @@
+import { takeRequestQuota, trustedRequestIp } from "@/lib/requestRateLimit";
 import {
   del,
   put,
@@ -27,12 +28,22 @@ export const runtime =
 const MAX_FILE_SIZE =
   4 * 1024 * 1024;
 
-const allowedFileTypes = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-];
+async function matchesFileSignature(file: File) {
+  const header = Buffer.from(await file.slice(0, 12).arrayBuffer());
+  switch (file.type) {
+    case "application/pdf":
+      return header.subarray(0, 5).toString("ascii") === "%PDF-";
+    case "image/png":
+      return header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    case "image/jpeg":
+      return header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+    case "image/webp":
+      return header.subarray(0, 4).toString("ascii") === "RIFF" &&
+        header.subarray(8, 12).toString("ascii") === "WEBP";
+    default:
+      return false;
+  }
+}
 
 const allowedSubmissionTypes = [
   "tip",
@@ -82,6 +93,14 @@ export async function POST(
     false;
 
   try {
+    if (Number(request.headers.get("content-length")) > 4_500_000) {
+      return NextResponse.json({ error: "Request is too large." }, { status: 413 });
+    }
+    const source = trustedRequestIp(request);
+    if (source && !(await takeRequestQuota("study:source", source, 15))) {
+      return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
+    }
+
     const token =
       process.env
         .SANITY_API_WRITE_TOKEN;
@@ -426,9 +445,7 @@ export async function POST(
       }
 
       if (
-        !allowedFileTypes.includes(
-          fileValue.type
-        )
+        !(await matchesFileSignature(fileValue))
       ) {
         return NextResponse.json(
           {
@@ -440,6 +457,10 @@ export async function POST(
           }
         );
       }
+    }
+
+    if (!(await takeRequestQuota("study:contact", email.trim().toLowerCase(), 8))) {
+      return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
     }
 
     /*

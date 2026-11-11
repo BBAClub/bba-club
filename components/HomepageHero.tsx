@@ -1,3 +1,5 @@
+
+import Link from "next/link";
 type HomepageHeroProps = {
   heroImageUrl?: string;
   heroImageAlt?: string;
@@ -44,12 +46,12 @@ export default function HomepageHero({
               Want to be involved? →
             </a>
 
-            <a
+            <Link
               href="/events"
               className="w-full rounded-xl border border-white/20 bg-white/5 px-6 py-3.5 text-center font-semibold transition hover:bg-white/10 sm:w-auto sm:px-7 sm:py-4"
             >
               See upcoming events
-            </a>
+            </Link>
           </div>
 
           <div className="mt-10 grid grid-cols-3 sm:mt-12">

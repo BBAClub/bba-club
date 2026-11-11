@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import {
   ChangeEvent,
@@ -508,31 +509,8 @@ export default function AdminEventForm({
   */
 
   useEffect(() => {
-    if (!coverImage) {
-      setCoverImagePreview(
-        null
-      );
-
-      return;
-    }
-
-    const previewUrl =
-      URL.createObjectURL(
-        coverImage
-      );
-
-    setCoverImagePreview(
-      previewUrl
-    );
-
-    return () => {
-      URL.revokeObjectURL(
-        previewUrl
-      );
-    };
-  }, [
-    coverImage,
-  ]);
+    if (coverImagePreview) return () => URL.revokeObjectURL(coverImagePreview);
+  }, [coverImagePreview]);
 
   const displayedCoverUrl =
     coverImagePreview ||
@@ -627,6 +605,7 @@ export default function AdminEventForm({
       return;
     }
 
+    setCoverImagePreview(URL.createObjectURL(file));
     setCoverImage(
       file
     );
@@ -650,6 +629,7 @@ export default function AdminEventForm({
   }
 
   function removeCoverImage() {
+    setCoverImagePreview(null);
     setCoverImage(
       null
     );
@@ -1373,7 +1353,8 @@ export default function AdminEventForm({
         ) : (
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#071422]">
             <div className="relative aspect-video overflow-hidden bg-[#091725]">
-              <img
+              <Image
+                fill sizes="720px" unoptimized={displayedCoverUrl.startsWith("blob:")}
                 src={
                   displayedCoverUrl
                 }
@@ -1579,7 +1560,8 @@ export default function AdminEventForm({
                     className="overflow-hidden rounded-2xl border border-white/10 bg-[#071422]"
                   >
                     <div className="relative aspect-video overflow-hidden bg-[#091725]">
-                      <img
+                      <Image
+                        fill sizes="360px" unoptimized={image.previewUrl.startsWith("blob:")}
                         src={
                           image.previewUrl
                         }

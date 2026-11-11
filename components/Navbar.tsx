@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Logo from "@/components/Logo";
-
-type NavbarProps = {
-  activePage?: "home" | "events" | "explore" | "study" | "about";
-};
 
 const navItems = [
   {
@@ -32,14 +28,13 @@ const navItems = [
   },
 ];
 
-export default function Navbar(_: NavbarProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+export default function Navbar() {
   const pathname = usePathname();
+  return <NavbarContent key={pathname} pathname={pathname} />;
+}
 
-  // Zavře menu při přechodu na jinou stránku
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+function NavbarContent({ pathname }: { pathname: string }) {
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/") {

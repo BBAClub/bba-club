@@ -1,3 +1,4 @@
+import { capacityConflict, capacityTransaction, readEventCapacity } from "@/lib/events/capacity";
 import {
   randomUUID,
 } from "node:crypto";
@@ -47,6 +48,7 @@ type PaymentCurrency =
 
 type Event = {
   _id: string;
+  _rev: string;
 
   title?: string;
   slug?: string;
@@ -73,6 +75,7 @@ type Event = {
 
 type Registration = {
   _id: string;
+  _rev: string;
 
   firstName?: string;
   lastName?: string;
@@ -115,6 +118,7 @@ type PayOnSiteRequestBody = {
 
 const REGISTRATION_FIELDS = `
   _id,
+  _rev,
 
   firstName,
   lastName,
@@ -134,6 +138,7 @@ const REGISTRATION_FIELDS = `
 
   "event": event->{
     _id,
+    _rev,
 
     title,
 
@@ -758,62 +763,22 @@ export async function POST(
       new Date()
         .toISOString();
 
-    const occupied =
-      await client.fetch<number>(
-        `
-          count(
-            *[
-              _type ==
-                "eventRegistration"
+    const writeClient =
+      client.withConfig({
+        token:
+          sanityToken,
 
-              && event._ref ==
-                $eventId
+        useCdn:
+          false,
+      });
 
-              && (
-                status in [
-                  "confirmed",
-                  "checked-in"
-                ]
-
-                ||
-
-                (
-                  status ==
-                    "pending-payment"
-
-                  && paymentStatus ==
-                    "pending"
-
-                  && defined(
-                    reservationExpiresAt
-                  )
-
-                  && reservationExpiresAt >
-                    $now
-                )
-              )
-            ]
-          )
-        `,
-        {
-          eventId:
-            registration.eventId,
-
-          now:
-            nowIso,
-        }
-      );
-
-    const eventIsFull =
-      event.registrationStatus ===
-        "full" ||
-      (
-        typeof event.capacity ===
-          "number" &&
-        event.capacity > 0 &&
-        occupied >=
-          event.capacity
-      );
+    const capacity = await readEventCapacity(writeClient, registration.eventId);
+    if (!capacity || capacity._rev !== event._rev) {
+      return NextResponse.json({ error: "Event changed. Please try again." }, { status: 409 });
+    }
+    const eventIsFull = capacity.registrationStatus === "full" ||
+      (typeof capacity.capacity === "number" && capacity.capacity > 0 &&
+        capacity.occupied >= capacity.capacity);
 
     if (eventIsFull) {
       return NextResponse.json(
@@ -848,15 +813,6 @@ export async function POST(
       );
     }
 
-    const writeClient =
-      client.withConfig({
-        token:
-          sanityToken,
-
-        useCdn:
-          false,
-      });
-
     const ticketCode =
       randomUUID();
 
@@ -882,10 +838,8 @@ export async function POST(
       been verified as CANCELLED.
     */
 
-    await writeClient
-      .patch(
-        registration._id
-      )
+    await capacityTransaction(writeClient, registration.eventId, capacity._rev)
+      .patch(registration._id, patch => patch.ifRevisionId(registration._rev)
       .set({
         status:
           "confirmed",
@@ -919,7 +873,8 @@ export async function POST(
         "confirmationEmailSentAt",
         "confirmationEmailId",
       ])
-      .commit();
+      )
+      .commit({ visibility: "sync" });
 
     /*
       Send the normal confirmation
@@ -1043,6 +998,9 @@ export async function POST(
         ),
     });
   } catch (error) {
+    if (capacityConflict(error)) {
+      return NextResponse.json({ error: "Registration changed. Please try again." }, { status: 409 });
+    }
     console.error(
       "Pay-on-site confirmation error:",
       error

@@ -1,3 +1,4 @@
+import { trustedRequest } from "@/lib/admin/security";
 import { NextResponse } from "next/server";
 
 import { client } from "@/sanity/lib/client";
@@ -22,6 +23,7 @@ type PaymentStatus =
 
 type Registration = {
   _id: string;
+  _rev: string;
 
   firstName?: string;
   lastName?: string;
@@ -52,6 +54,7 @@ type Registration = {
 
 type CheckInRequest = {
   action?: unknown;
+  eventId?: unknown;
 
   ticket?: unknown;
 
@@ -64,6 +67,7 @@ type CheckInRequest = {
 
 const REGISTRATION_FIELDS = `
   _id,
+  _rev,
 
   firstName,
   lastName,
@@ -121,7 +125,8 @@ function normalizeTicket(
 }
 
 async function findRegistrationByTicket(
-  ticketCode: string
+  ticketCode: string,
+  eventId: string
 ) {
   return client.fetch<
     Registration | null
@@ -129,6 +134,7 @@ async function findRegistrationByTicket(
     `
       *[
         _type == "eventRegistration"
+        && event._ref == $eventId
         && ticketCode == $ticketCode
       ][0] {
         ${REGISTRATION_FIELDS}
@@ -136,12 +142,14 @@ async function findRegistrationByTicket(
     `,
     {
       ticketCode,
+      eventId,
     }
   );
 }
 
 async function findRegistrationById(
-  registrationId: string
+  registrationId: string,
+  eventId: string
 ) {
   return client.fetch<
     Registration | null
@@ -149,6 +157,7 @@ async function findRegistrationById(
     `
       *[
         _type == "eventRegistration"
+        && event._ref == $eventId
         && _id == $registrationId
       ][0] {
         ${REGISTRATION_FIELDS}
@@ -156,6 +165,7 @@ async function findRegistrationById(
     `,
     {
       registrationId,
+      eventId,
     }
   );
 }
@@ -163,6 +173,10 @@ async function findRegistrationById(
 export async function POST(
   request: Request
 ) {
+  if (!trustedRequest(request)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
   try {
     const authenticated =
       await isAdminAuthenticated("checkin");
@@ -213,6 +227,11 @@ export async function POST(
       );
     }
 
+    const eventId = getString(body.eventId);
+    if (!eventId) {
+      return NextResponse.json({ error: "Select an event first." }, { status: 400 });
+    }
+
     const action =
       getString(body.action);
 
@@ -249,6 +268,7 @@ export async function POST(
           `
             *[
               _type == "eventRegistration"
+              && event._ref == $eventId
               && (
                 lower(firstName) match $pattern
                 || lower(lastName) match $pattern
@@ -267,6 +287,7 @@ export async function POST(
           `,
           {
             pattern,
+            eventId,
           }
         );
 
@@ -314,14 +335,14 @@ export async function POST(
 
       registration =
         await findRegistrationByTicket(
-          ticketCode
+          ticketCode, eventId
         );
     } else if (
       registrationId
     ) {
       registration =
         await findRegistrationById(
-          registrationId
+          registrationId, eventId
         );
     }
 
@@ -452,6 +473,7 @@ export async function POST(
       .patch(
         registration._id
       )
+      .ifRevisionId(registration._rev)
       .set({
         status: "checked-in",
         checkedInAt,
@@ -489,6 +511,13 @@ export async function POST(
       },
     });
   } catch (error) {
+    if ((error as { statusCode?: number })?.statusCode === 409) {
+      return NextResponse.json(
+        { error: "Registration changed. Refresh and try again." },
+        { status: 409 }
+      );
+    }
+
     console.error(
       "Check-in API error:",
       error

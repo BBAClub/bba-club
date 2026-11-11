@@ -62,7 +62,7 @@ function formatBytes(
 
 export const reviewSubmissionAction:
   DocumentActionComponent =
-  (props) => {
+  function ReviewSubmissionAction(props) {
     const [
       dialogOpen,
       setDialogOpen,

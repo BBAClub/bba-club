@@ -1,3 +1,7 @@
+import { comgateAttemptDocument } from "@/lib/payments/comgateAttempt";
+import { linkComgateCheckout } from "@/lib/payments/linkComgateCheckout";
+import { takeRequestQuota, trustedRequestIp } from "@/lib/requestRateLimit";
+import { capacityConflict, capacityTransaction, readEventCapacity } from "@/lib/events/capacity";
 import {
   NextResponse,
 } from "next/server";
@@ -39,6 +43,7 @@ type PaymentStatus =
 
 type EventDocument = {
   _id: string;
+  _rev: string;
 
   title?: string;
   slug?: string;
@@ -66,6 +71,7 @@ type EventDocument = {
 
 type ExistingRegistration = {
   _id: string;
+  _rev: string;
 
   status?: RegistrationStatus;
 
@@ -120,6 +126,7 @@ type RegistrationFields = {
   paymentCurrency?: string;
 
   paymentCreatedAt?: string;
+  paymentAttemptRef?: string;
 
   reservationExpiresAt?: string;
 };
@@ -205,6 +212,14 @@ export async function POST(
   request: Request
 ) {
   try {
+    if (Number(request.headers.get("content-length")) > 16_384) {
+      return NextResponse.json({ error: "Request is too large." }, { status: 413 });
+    }
+    const source = trustedRequestIp(request);
+    if (source && !(await takeRequestQuota("registration:source", source, 40))) {
+      return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
+    }
+
     const writeToken =
       process.env
         .SANITY_API_WRITE_TOKEN;
@@ -370,8 +385,12 @@ export async function POST(
       Sanity.
     */
 
+    if (!(await takeRequestQuota("registration:contact", JSON.stringify([eventSlug, email]), 8))) {
+      return NextResponse.json({ error: "Too many requests. Try again later." }, { status: 429 });
+    }
+
     const event =
-      await client.fetch<
+      await writeClient.fetch<
         EventDocument | null
       >(
         `
@@ -380,6 +399,7 @@ export async function POST(
             && slug.current == $eventSlug
           ][0] {
             _id,
+            _rev,
 
             title,
 
@@ -527,7 +547,7 @@ export async function POST(
     */
 
     let existing =
-      await client.fetch<
+      await writeClient.fetch<
         ExistingRegistration | null
       >(
         `
@@ -546,6 +566,7 @@ export async function POST(
           )
           [0] {
             _id,
+            _rev,
 
             status,
             paymentStatus,
@@ -604,6 +625,13 @@ export async function POST(
           {
             status: 200,
           }
+        );
+      }
+
+      if (validFutureDate(existing.reservationExpiresAt)) {
+        return NextResponse.json(
+          { error: "Your payment is still being prepared. Please try again shortly.", code: "PAYMENT_PENDING" },
+          { status: 409 },
         );
       }
 
@@ -668,10 +696,11 @@ export async function POST(
             previousPayment.status ===
             "CANCELLED"
           ) {
-            await writeClient
+            const cancelled = await writeClient
               .patch(
                 existing._id
               )
+              .ifRevisionId(existing._rev)
               .set({
                 status:
                   "cancelled",
@@ -686,6 +715,7 @@ export async function POST(
 
             existing = {
               ...existing,
+              _rev: cancelled._rev,
 
               status:
                 "cancelled",
@@ -713,10 +743,11 @@ export async function POST(
           );
         }
       } else {
-        await writeClient
+        const cancelled = await writeClient
           .patch(
             existing._id
           )
+          .ifRevisionId(existing._rev)
           .set({
             status:
               "cancelled",
@@ -731,6 +762,7 @@ export async function POST(
 
         existing = {
           ...existing,
+          _rev: cancelled._rev,
 
           status:
             "cancelled",
@@ -776,70 +808,13 @@ export async function POST(
       - active pending payment
     */
 
-    const nowIso =
-      new Date()
-        .toISOString();
-
-    const occupied =
-      await client.fetch<number>(
-        `
-          count(
-            *[
-              _type ==
-                "eventRegistration"
-
-              && event._ref ==
-                $eventId
-
-              && (
-                status in [
-                  "confirmed",
-                  "checked-in"
-                ]
-
-                ||
-
-                (
-                  status ==
-                    "pending-payment"
-
-                  && paymentStatus ==
-                    "pending"
-
-                  && defined(
-                    reservationExpiresAt
-                  )
-
-                  && reservationExpiresAt >
-                    $now
-                )
-              )
-            ]
-          )
-        `,
-        {
-          eventId:
-            event._id,
-
-          now:
-            nowIso,
-        }
-      );
-
-    /*
-      IS EVENT FULL?
-    */
-
-    const eventIsFull =
-      event.registrationStatus ===
-        "full" ||
-      (
-        typeof event.capacity ===
-          "number" &&
-        event.capacity > 0 &&
-        occupied >=
-          event.capacity
-      );
+    const capacity = await readEventCapacity(writeClient, event._id);
+    if (!capacity || capacity._rev !== event._rev) {
+      return NextResponse.json({ error: "Event changed. Please try again." }, { status: 409 });
+    }
+    const eventIsFull = capacity.registrationStatus === "full" ||
+      (typeof capacity.capacity === "number" && capacity.capacity > 0 &&
+        capacity.occupied >= capacity.capacity);
 
     const registeredAt =
       new Date()
@@ -863,6 +838,29 @@ export async function POST(
       registrationId =
         existing._id;
     }
+
+    const saveRegistration = async (fields: RegistrationFields, unsetFields: string[]) => {
+      const transaction = capacityTransaction(writeClient, event._id, capacity._rev);
+      if (existing?.status === "cancelled" && existing._id === registrationId) {
+        transaction.patch(registrationId, patch =>
+          patch.ifRevisionId(existing._rev).set(fields).unset(unsetFields),
+        );
+      } else {
+        if (existing?.status === "cancelled") transaction.delete(existing._id);
+        transaction.create({
+          _id: registrationId,
+          _type: "eventRegistration",
+          event: { _type: "reference", _ref: event._id },
+          ...fields,
+        });
+      }
+      if (fields.paymentAttemptRef && fields.paymentAmount !== undefined && fields.paymentCurrency) {
+        transaction.create(comgateAttemptDocument(
+          fields.paymentAttemptRef, registrationId, event._id, fields.paymentAmount, fields.paymentCurrency,
+        ));
+      }
+      await transaction.commit({ visibility: "sync" });
+    };
 
     /*
       ==================================
@@ -952,80 +950,14 @@ export async function POST(
         );
       }
 
-      if (
-        existing &&
-        existing.status ===
-          "cancelled"
-      ) {
-        if (
-          existing._id.includes(
-            "."
-          )
-        ) {
-          await writeClient
-            .patch(
-              registrationId
-            )
-            .set(
-              waitlistFields
-            )
-            .unset(
-              unsetFields
-            )
-            .commit();
-        } else {
-          await writeClient
-            .delete(
-              existing._id
-            );
-
-          registrationId =
-            createPrivateRegistrationId();
-
-          await writeClient.create({
-            _id:
-              registrationId,
-
-            _type:
-              "eventRegistration",
-
-            event: {
-              _type:
-                "reference",
-
-              _ref:
-                event._id,
-            },
-
-            ...waitlistFields,
-          });
-        }
-      } else {
-        await writeClient.create({
-          _id:
-            registrationId,
-
-          _type:
-            "eventRegistration",
-
-          event: {
-            _type:
-              "reference",
-
-            _ref:
-              event._id,
-          },
-
-          ...waitlistFields,
-        });
-      }
+      await saveRegistration(waitlistFields, unsetFields);
 
       /*
         WAITLIST POSITION
       */
 
       const waitlistPosition =
-        await client.fetch<number>(
+        await writeClient.fetch<number>(
           `
             count(
               *[
@@ -1179,6 +1111,7 @@ export async function POST(
             30 * 60 * 1000
         ).toISOString();
 
+      const paymentRefId = randomUUID();
       const paymentFields:
         RegistrationFields = {
           status:
@@ -1207,6 +1140,7 @@ export async function POST(
               .toISOString(),
 
           reservationExpiresAt,
+          paymentAttemptRef: paymentRefId,
 
           ...(university
             ? {
@@ -1248,83 +1182,11 @@ export async function POST(
         );
       }
 
-      if (
-        existing &&
-        existing.status ===
-          "cancelled"
-      ) {
-        if (
-          existing._id.includes(
-            "."
-          )
-        ) {
-          await writeClient
-            .patch(
-              registrationId
-            )
-            .set(
-              paymentFields
-            )
-            .unset(
-              unsetFields
-            )
-            .commit();
-        } else {
-          await writeClient
-            .delete(
-              existing._id
-            );
-
-          registrationId =
-            createPrivateRegistrationId();
-
-          await writeClient.create({
-            _id:
-              registrationId,
-
-            _type:
-              "eventRegistration",
-
-            event: {
-              _type:
-                "reference",
-
-              _ref:
-                event._id,
-            },
-
-            ...paymentFields,
-          });
-        }
-      } else {
-        await writeClient.create({
-          _id:
-            registrationId,
-
-          _type:
-            "eventRegistration",
-
-          event: {
-            _type:
-              "reference",
-
-            _ref:
-              event._id,
-          },
-
-          ...paymentFields,
-        });
-      }
+      await saveRegistration(paymentFields, unsetFields);
 
       /*
         CREATE COMGATE PAYMENT
       */
-
-      const paymentRefId =
-        registrationId.replace(
-          /^private\.event-registration-/,
-          ""
-        );
 
       const origin =
         getSiteOrigin(
@@ -1382,18 +1244,7 @@ export async function POST(
             }
           );
 
-        await writeClient
-          .patch(
-            registrationId
-          )
-          .set({
-            paymentTransactionId:
-              payment.transId,
-
-            paymentRedirectUrl:
-              payment.redirectUrl,
-          })
-          .commit();
+        await linkComgateCheckout(writeClient, registrationId, paymentRefId, payment);
 
         return NextResponse.json(
           {
@@ -1422,32 +1273,6 @@ export async function POST(
       } catch (
         paymentError
       ) {
-        try {
-          await writeClient
-            .patch(
-              registrationId
-            )
-            .set({
-              status:
-                "cancelled",
-
-              paymentStatus:
-                "failed",
-            })
-            .unset([
-              "reservationExpiresAt",
-              "paymentRedirectUrl",
-            ])
-            .commit();
-        } catch (
-          rollbackError
-        ) {
-          console.error(
-            "Failed to release reservation after Comgate error:",
-            rollbackError
-          );
-        }
-
         console.error(
           "Comgate payment creation failed:",
           paymentError
@@ -1548,76 +1373,7 @@ export async function POST(
       );
     }
 
-    if (
-      existing &&
-      existing.status ===
-        "cancelled"
-    ) {
-      const existingIsPrivate =
-        existing._id.includes(
-          "."
-        );
-
-      if (
-        existingIsPrivate
-      ) {
-        await writeClient
-          .patch(
-            registrationId
-          )
-          .set(
-            registrationFields
-          )
-          .unset(
-            unsetFields
-          )
-          .commit();
-      } else {
-        await writeClient
-          .delete(
-            existing._id
-          );
-
-        registrationId =
-          createPrivateRegistrationId();
-
-        await writeClient.create({
-          _id:
-            registrationId,
-
-          _type:
-            "eventRegistration",
-
-          event: {
-            _type:
-              "reference",
-
-            _ref:
-              event._id,
-          },
-
-          ...registrationFields,
-        });
-      }
-    } else {
-      await writeClient.create({
-        _id:
-          registrationId,
-
-        _type:
-          "eventRegistration",
-
-        event: {
-          _type:
-            "reference",
-
-          _ref:
-            event._id,
-        },
-
-        ...registrationFields,
-      });
-    }
+    await saveRegistration(registrationFields, unsetFields);
 
     /*
       CONFIRMATION EMAIL
@@ -1726,6 +1482,9 @@ export async function POST(
       }
     );
   } catch (error) {
+    if (capacityConflict(error)) {
+      return NextResponse.json({ error: "Registration changed. Please try again." }, { status: 409 });
+    }
     console.error(
       "Event registration error:",
       error

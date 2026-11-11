@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -137,12 +138,15 @@ type PaymentRegistration = {
   reservationExpiresAt?:
     string;
 
+  ticketCode?: string;
+  ticketEmailSentFor?: string;
   confirmationEmailSentAt?:
     string;
 };
 
 type PaymentNoticeState =
   | "paid"
+  | "paid-waitlist"
   | "pending"
   | "cancelled"
   | "unknown";
@@ -519,6 +523,10 @@ function getPaymentNoticeState(
     return "unknown";
   }
 
+  if (registration.paymentStatus === "paid" && registration.status === "waitlist") {
+    return "paid-waitlist";
+  }
+
   if (
     registration
       .paymentStatus ===
@@ -560,7 +568,7 @@ function PaymentReturnNotice({
   state,
   emailSent,
   paymentUrl,
-  reservationExpiresAt,
+  reservationStillActive,
   refreshHref,
 }: {
   state:
@@ -572,21 +580,25 @@ function PaymentReturnNotice({
   paymentUrl?:
     string;
 
-  reservationExpiresAt?:
-    string;
+  reservationStillActive: boolean;
 
   refreshHref:
     string;
 }) {
-  const reservationStillActive =
-    reservationExpiresAt
-      ? (
-          new Date(
-            reservationExpiresAt
-          ).getTime() >
-          Date.now()
-        )
-      : false;
+  if (state === "paid-waitlist") {
+    return (
+      <section className="border-b border-white/10 bg-[#091725] px-6 py-6 lg:px-10">
+        <div className="mx-auto max-w-7xl rounded-[20px] border border-amber-300/30 bg-[#0D2035] p-5 md:p-6">
+          <h2 className="text-xl font-semibold">Payment received. You are on the waitlist.</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#A9B5C3]">
+            The event filled after your reservation expired. We will email you a
+            ticket if a place becomes available. Please contact BBA Club for help
+            with your payment.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   if (
     state ===
@@ -866,7 +878,7 @@ export default async function EventDetailPage({
               paymentRedirectUrl,
               reservationExpiresAt,
 
-              confirmationEmailSentAt
+              confirmationEmailSentAt, ticketCode, ticketEmailSentFor
             }
           `,
           {
@@ -1086,17 +1098,16 @@ export default async function EventDetailPage({
           }
           emailSent={
             Boolean(
-              paymentRegistration
-                ?.confirmationEmailSentAt
+              paymentRegistration?.ticketCode &&
+              paymentRegistration.ticketEmailSentFor === paymentRegistration.ticketCode
             )
           }
           paymentUrl={
             paymentRegistration
               ?.paymentRedirectUrl
           }
-          reservationExpiresAt={
-            paymentRegistration
-              ?.reservationExpiresAt
+          reservationStillActive={
+            Date.parse(paymentRegistration?.reservationExpiresAt ?? "") > Date.parse(nowIso)
           }
           refreshHref={
             refreshHref
@@ -1335,9 +1346,9 @@ export default async function EventDetailPage({
                               : ""
                           }`}
                         >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
 
-                          <img
+                          <Image
+                            width={960} height={640} sizes="(max-width: 640px) 100vw, 640px"
                             src={
                               image.url
                             }

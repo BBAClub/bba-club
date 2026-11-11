@@ -68,7 +68,7 @@ function statusLabel(
 }
 
 export const manageEventRegistrationAction: DocumentActionComponent =
-  (props) => {
+  function ManageEventRegistrationAction(props) {
     const [
       dialogOpen,
       setDialogOpen,
@@ -181,8 +181,8 @@ export const manageEventRegistrationAction: DocumentActionComponent =
           response.status ===
           401
         ) {
-          window.location.href =
-            "/admin/login?next=/studio";
+          // Studio uses its own router and exits through a document navigation.
+          window.location.assign(new URL("/admin/login?next=/studio", window.location.origin));
 
           return;
         }

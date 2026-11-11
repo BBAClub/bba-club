@@ -64,8 +64,8 @@ function load(relative) {
   let file = path.resolve(root, relative);
   if (!path.extname(file)) file += ".ts";
   if (cache.has(file)) return cache.get(file).exports;
-  const module = { exports: {} };
-  cache.set(file, module);
+  const loadedModule = { exports: {} };
+  cache.set(file, loadedModule);
   const js = ts.transpileModule(fs.readFileSync(file, "utf8"), {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
@@ -111,14 +111,13 @@ function load(relative) {
   };
   new Function("require", "module", "exports", js)(
     requireMock,
-    module,
-    module.exports,
+    loadedModule,
+    loadedModule.exports,
   );
-  return module.exports;
+  return loadedModule.exports;
 }
 const accounts = load("lib/admin/accounts");
 const security = load("lib/admin/security");
-const permissions = load("lib/admin/permissions");
 const auth = load("lib/admin/auth");
 const destination = load("lib/admin/destination");
 const latestCode = () => emails.at(-1).text.match(/code is: (\d{8})/)[1];
@@ -279,7 +278,7 @@ test("approval, permission isolation, account disable and re-enable invalidate o
     /access=denied/,
   );
   const oldSession = new Map(jar);
-  let disabled = await accounts.updateAccount(owner, {
+  const disabled = await accounts.updateAccount(owner, {
     id: member.id,
     revision: approved.sessionVersion,
     status: "disabled",
@@ -521,7 +520,7 @@ test("recovery creates no account for an unknown email", async () => {
 test("reset cannot approve a pending account or restore a disabled account", async () => {
   const member = await signIn();
   const owner = await signIn("owner@vse.cz");
-  let disabled = await accounts.updateAccount(owner, {
+  await accounts.updateAccount(owner, {
     id: member.id,
     revision: member.sessionVersion,
     status: "disabled",

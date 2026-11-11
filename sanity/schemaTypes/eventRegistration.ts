@@ -304,6 +304,13 @@ export const eventRegistrationType =
       }),
 
       defineField({
+        name: "paymentAttemptRef",
+        type: "string",
+        readOnly: true,
+        hidden: true,
+      }),
+
+      defineField({
         name:
           "paymentTransactionId",
 
@@ -455,6 +462,37 @@ export const eventRegistrationType =
       /*
         EMAIL DELIVERY
       */
+
+      defineField({
+        name: "ticketEmailQueuedFor",
+        title: "Queued ticket identifier",
+        type: "string",
+        hidden: true,
+        readOnly: true,
+      }),
+
+      defineField({
+        name: "ticketEmailSentFor",
+        title: "Sent ticket identifier",
+        type: "string",
+        hidden: true,
+        readOnly: true,
+      }),
+
+      defineField({
+        name: "ticketEmailAttemptedAt",
+        title: "Ticket email last attempted at",
+        type: "datetime",
+        hidden: true,
+        readOnly: true,
+      }),
+
+      defineField({
+        name: "ticketEmailSentAt",
+        title: "Ticket email sent at",
+        type: "datetime",
+        readOnly: true,
+      }),
 
       defineField({
         name:

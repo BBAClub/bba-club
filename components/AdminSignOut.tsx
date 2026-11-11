@@ -1,6 +1,9 @@
 "use client";
+
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 export default function AdminSignOut() {
+  const router = useRouter();
   const [error, setError] = useState(false);
   return (
     <div>
@@ -13,7 +16,8 @@ export default function AdminSignOut() {
               method: "POST",
             });
             if (!response.ok) throw new Error();
-            window.location.assign("/admin/login");
+            router.replace("/admin/login");
+            router.refresh();
           } catch {
             setError(true);
           }

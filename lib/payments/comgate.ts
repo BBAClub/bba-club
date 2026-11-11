@@ -329,6 +329,7 @@ export async function createComgatePayment(
     await fetch(
       `${COMGATE_API_URL}/payment.json`,
       {
+        signal: AbortSignal.timeout(10_000),
         method:
           "POST",
 
@@ -486,6 +487,7 @@ export async function getComgatePaymentStatus(
         normalizedTransId
       )}.json`,
       {
+        signal: AbortSignal.timeout(10_000),
         method:
           "GET",
 
@@ -577,6 +579,7 @@ export async function cancelComgatePayment(
         normalizedTransId
       )}.json`,
       {
+        signal: AbortSignal.timeout(10_000),
         method:
           "DELETE",
 
@@ -732,6 +735,7 @@ export async function refundComgatePayment({
     await fetch(
       `${COMGATE_API_URL}/refund.json`,
       {
+        signal: AbortSignal.timeout(10_000),
         method:
           "POST",
 

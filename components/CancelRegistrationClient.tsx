@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   useEffect,
   useState,
@@ -291,7 +293,7 @@ export default function CancelRegistrationClient() {
         </p>
 
         <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em]">
-          We couldn't open this registration.
+          We couldn’t open this registration.
         </h1>
 
         <p className="mt-4 leading-7 text-[#8EA0B3]">
@@ -350,12 +352,12 @@ export default function CancelRegistrationClient() {
           available spot.
         </p>
 
-        <a
+        <Link
           href="/events"
           className="mt-7 inline-flex rounded-xl bg-[#0057FF] px-5 py-3 font-semibold text-white transition hover:bg-[#2874FF]"
         >
           View events
-        </a>
+        </Link>
       </div>
     );
   }
@@ -451,12 +453,12 @@ export default function CancelRegistrationClient() {
         </>
       )}
 
-      <a
+      <Link
         href="/events"
         className="mt-4 block text-center text-sm text-[#71869A] transition hover:text-white"
       >
         Keep my registration
-      </a>
+      </Link>
     </div>
   );
 }

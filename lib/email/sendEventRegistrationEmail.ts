@@ -1,3 +1,6 @@
+import { eventStart, ticketLeadTime } from "./eventTicketTiming";
+import { ticketDeliveryStore } from "./ticketDeliveryStore";
+
 import {
   Resend,
 } from "resend";
@@ -34,6 +37,9 @@ type SendEventRegistrationEmailProps = {
   address?: string;
 
   waitlistPosition?: number;
+  ticketOnly?: boolean;
+  paidAmount?: number;
+  paidCurrency?: PaymentCurrency;
 };
 
 type PaymentCurrency =
@@ -426,7 +432,33 @@ export async function sendEventRegistrationEmail({
   location,
   address,
   waitlistPosition,
+  ticketOnly = false,
+  paidAmount,
+  paidCurrency,
 }: SendEventRegistrationEmailProps) {
+  const confirmed =
+    status ===
+    "confirmed";
+
+  const store = confirmed && !ticketOnly ? ticketDeliveryStore() : null;
+  let deferred = false;
+  if (store) {
+    try {
+      const start = eventStart(date, time);
+      const registration = await store.getDocument<{ ticketEmailQueuedFor?: string }>(registrationId);
+      deferred = registration?.ticketEmailQueuedFor === ticketCode;
+      if (!deferred && start !== null && start - Date.now() > ticketLeadTime) {
+        await store.patch(registrationId).set({
+          ticketEmailQueuedFor: ticketCode,
+        }).commit({ visibility: "sync" });
+        deferred = true;
+      }
+    } catch (error) {
+      // If queueing is unavailable, deliver the ticket with the confirmation.
+      console.error("Could not queue ticket delivery:", error instanceof Error ? error.name : "Unknown error");
+    }
+  }
+
   const resendConfig =
     getResendConfig();
 
@@ -444,9 +476,11 @@ export async function sendEventRegistrationEmail({
     from,
   } = resendConfig;
 
-  const confirmed =
-    status ===
-    "confirmed";
+  const includeTicket = confirmed && !deferred;
+  const paid = confirmed && !ticketOnly && typeof paidAmount === "number" && paidCurrency
+    ? formatPrice(paidAmount, paidCurrency)
+    : "";
+  const ticketNotice = deferred ? "Your QR ticket will arrive in a separate email around 24 hours before the event." : "";
 
   const safeFirstName =
     escapeHtml(
@@ -486,7 +520,7 @@ export async function sendEventRegistrationEmail({
     | string
     | undefined;
 
-  if (confirmed) {
+  if (includeTicket) {
     try {
       qrBase64 =
         await createTicketQr(
@@ -502,17 +536,17 @@ export async function sendEventRegistrationEmail({
 
   const subject =
     confirmed
-      ? `You're registered for ${eventTitle}`
+      ? ticketOnly ? `Your QR ticket for ${eventTitle}` : paid ? `Payment confirmed for ${eventTitle}` : `You're registered for ${eventTitle}`
       : `You're on the waitlist for ${eventTitle}`;
 
   const statusTitle =
     confirmed
-      ? "Your registration is confirmed."
+      ? ticketOnly ? "Your QR ticket is ready." : paid ? "Your payment is confirmed." : "Your registration is confirmed."
       : "You're on the waitlist.";
 
   const intro =
     confirmed
-      ? `Your place for ${safeTitle} has been reserved.`
+      ? ticketOnly ? `Here is your ticket for ${safeTitle}.` : `Your place for ${safeTitle} has been reserved.`
       : `The event is currently full, but we've added you to the waitlist.`;
 
   const waitlistHtml =
@@ -547,7 +581,7 @@ export async function sendEventRegistrationEmail({
       : "";
 
   const ticketHtml =
-    confirmed
+    includeTicket
       ? `
         <div style="
           margin-top: 28px;
@@ -767,6 +801,8 @@ export async function sendEventRegistrationEmail({
               line-height: 1.7;
             ">
               ${intro}
+              ${paid ? `Amount paid: ${escapeHtml(paid)}.` : ""}
+              ${ticketNotice}
             </p>
 
             <div style="
@@ -832,14 +868,12 @@ export async function sendEventRegistrationEmail({
       ? `
 Hi ${firstName},
 
-Your registration for ${eventTitle} is confirmed.
+${ticketOnly ? `Here is your QR ticket for ${eventTitle}.` : `Your registration for ${eventTitle} is confirmed.`}
+${paid ? `Amount paid: ${paid}.` : ""}
 
 ${formattedDate ? `Date: ${formattedDate}\n` : ""}${time ? `Time: ${time}\n` : ""}${place ? `Venue: ${place}\n` : ""}${address ? `Address: ${address}\n` : ""}
 
-Ticket code:
-${ticketCode}
-
-Show your QR ticket from this email at the entrance.
+${includeTicket ? `Ticket code:\n${ticketCode}\n\nShow your QR ticket from this email at the entrance.` : ticketNotice}
 
 ${
   cancellationUrl
@@ -872,7 +906,7 @@ BBA Club
       `.trim();
 
   const attachments =
-    confirmed &&
+    includeTicket &&
     qrBase64
       ? [
           {
@@ -912,7 +946,7 @@ BBA Club
       },
       {
         idempotencyKey:
-          `event-registration/${registrationId}/${status}/${ticketCode}`,
+          `event-registration/${registrationId}/${ticketOnly ? "ticket" : status}/${ticketCode}`,
       }
     );
 
@@ -930,6 +964,17 @@ BBA Club
 
       error,
     };
+  }
+
+  if (includeTicket && store) {
+    try {
+      await store.patch(registrationId).set({
+        ticketEmailSentFor: ticketCode,
+        ticketEmailSentAt: new Date().toISOString(),
+      }).commit();
+    } catch (error) {
+      console.error("Could not record immediate ticket delivery:", error);
+    }
   }
 
   return {

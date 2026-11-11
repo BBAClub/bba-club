@@ -1,3 +1,4 @@
+import { trustedRequest } from "@/lib/admin/security";
 import {
   NextResponse,
 } from "next/server";
@@ -22,6 +23,10 @@ export async function DELETE(
       }>;
   }
 ) {
+  if (!trustedRequest(request)) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
   try {
     const authenticated =
       await isAdminAuthenticated("events");
