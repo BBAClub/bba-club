@@ -417,6 +417,8 @@ export default function ExploreClient({
                                 {
                                   place.address
                                 }
+                                {place.distanceFromSchoolKm != null &&
+                                  ` · ${place.distanceFromSchoolKm} km walk from VŠE`}
                               </p>
 
                               <div className="mt-3 flex justify-end">
@@ -607,6 +609,8 @@ export default function ExploreClient({
                           {
                             place.address
                           }
+                          {place.distanceFromSchoolKm != null &&
+                            ` · ${place.distanceFromSchoolKm} km walk from VŠE`}
                         </p>
                       </div>
 
@@ -725,6 +729,8 @@ export default function ExploreClient({
                           {
                             desktopVisiblePlace.address
                           }
+                          {desktopVisiblePlace.distanceFromSchoolKm != null &&
+                            ` · ${desktopVisiblePlace.distanceFromSchoolKm} km walk from VŠE`}
                         </p>
 
                         <p className="mt-4 leading-7 text-[#A9B5C3]">

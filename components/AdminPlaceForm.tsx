@@ -17,7 +17,8 @@ type Category =
   | "Food"
   | "Study"
   | "Nightlife"
-  | "Outdoors";
+  | "Outdoors"
+  | "Sports";
 
 type ExistingImage = {
   assetId: string;
@@ -32,6 +33,7 @@ export type AdminPlaceFormData = {
   address?: string;
   description?: string;
   price?: string;
+  distanceFromSchoolKm?: number;
   symbol?: string;
 
   latitude?: number;
@@ -56,6 +58,7 @@ const categories: Category[] = [
   "Study",
   "Nightlife",
   "Outdoors",
+  "Sports",
 ];
 
 const inputClass =
@@ -122,6 +125,10 @@ export default function AdminPlaceForm({
     useState(
       initialData?.price ?? ""
     );
+
+  const [distanceFromSchoolKm, setDistanceFromSchoolKm] = useState(
+    initialData?.distanceFromSchoolKm?.toString() ?? ""
+  );
 
   const [symbol, setSymbol] =
     useState(
@@ -390,6 +397,7 @@ export default function AdminPlaceForm({
         address,
         description,
         price,
+        distanceFromSchoolKm: distanceFromSchoolKm === "" ? null : Number(distanceFromSchoolKm),
         symbol,
 
         latitude:
@@ -588,6 +596,23 @@ export default function AdminPlaceForm({
             />
           </Field>
         </div>
+
+        <Field
+          label="Walking distance from VŠE Žižkov (km)"
+          htmlFor="place-distance-from-school"
+          hint="Optional. Use the walking route from the main campus."
+        >
+          <input
+            id="place-distance-from-school"
+            type="number"
+            min="0"
+            step="any"
+            value={distanceFromSchoolKm}
+            onChange={(event) => setDistanceFromSchoolKm(event.target.value)}
+            placeholder="1.2"
+            className={inputClass}
+          />
+        </Field>
 
         <Field
           label="Address"
@@ -915,11 +940,13 @@ function Section({
 
 function Field({
   label,
+  htmlFor,
   hint,
   required,
   children,
 }: {
   label: string;
+  htmlFor?: string;
   hint?: string;
   required?: boolean;
   children:
@@ -927,7 +954,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-xs font-semibold text-[#A9B5C3]">
+      <label htmlFor={htmlFor} className="text-xs font-semibold text-[#A9B5C3]">
         {label}
 
         {required && (

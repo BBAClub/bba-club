@@ -73,7 +73,8 @@ type SanityPlace = {
     | "Food"
     | "Study"
     | "Nightlife"
-    | "Outdoors";
+    | "Outdoors"
+    | "Sports";
 
   area: string;
 

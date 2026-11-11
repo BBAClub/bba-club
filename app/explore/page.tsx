@@ -25,7 +25,8 @@ type SanityPlace = {
     | "Food"
     | "Study"
     | "Nightlife"
-    | "Outdoors";
+    | "Outdoors"
+    | "Sports";
 
   area: string;
 
@@ -34,6 +35,8 @@ type SanityPlace = {
   description: string;
 
   price: string;
+
+  distanceFromSchoolKm?: number;
 
   symbol: string;
 
@@ -89,6 +92,8 @@ function convertSanityPlace(
 
     price:
       place.price,
+
+    distanceFromSchoolKm: place.distanceFromSchoolKm,
 
     symbol:
       place.symbol,

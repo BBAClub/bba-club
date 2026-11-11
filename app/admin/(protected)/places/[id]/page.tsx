@@ -28,12 +28,14 @@ type PlaceDocument = {
     | "Food"
     | "Study"
     | "Nightlife"
-    | "Outdoors";
+    | "Outdoors"
+    | "Sports";
 
   area?: string;
   address?: string;
   description?: string;
   price?: string;
+  distanceFromSchoolKm?: number;
   symbol?: string;
 
   latitude?: number;
@@ -60,6 +62,7 @@ const ADMIN_PLACE_QUERY = `
     address,
     description,
     price,
+    distanceFromSchoolKm,
     symbol,
     latitude,
     longitude,
@@ -129,6 +132,7 @@ export default async function EditPlacePage({
 
       price:
         place.price ?? "",
+      distanceFromSchoolKm: place.distanceFromSchoolKm,
 
       symbol:
         place.symbol ?? "",

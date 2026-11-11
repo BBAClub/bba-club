@@ -32,6 +32,7 @@ const categories = [
   "Study",
   "Nightlife",
   "Outdoors",
+  "Sports",
 ];
 
 export default function AdminPlacesList({

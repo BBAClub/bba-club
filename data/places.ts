@@ -4,7 +4,8 @@ export type Category =
   | "Food"
   | "Study"
   | "Nightlife"
-  | "Outdoors";
+  | "Outdoors"
+  | "Sports";
 
 export type Place = {
   name: string;
@@ -21,6 +22,8 @@ export type Place = {
   description: string;
 
   price: string;
+
+  distanceFromSchoolKm?: number;
 
   symbol: string;
 
@@ -46,6 +49,7 @@ export const categories: Category[] = [
   "Study",
   "Nightlife",
   "Outdoors",
+  "Sports",
 ];
 
 /*

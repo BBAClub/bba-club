@@ -43,6 +43,7 @@ export const placeType = defineType({
             title: "Outdoors",
             value: "Outdoors",
           },
+          { title: "Sports", value: "Sports" },
         ],
         layout: "dropdown",
       },
@@ -87,6 +88,13 @@ export const placeType = defineType({
         "For example Free, €, €€ or €€€.",
       validation: (Rule) =>
         Rule.required(),
+    }),
+
+    defineField({
+      name: "distanceFromSchoolKm",
+      title: "Walking distance from VŠE Žižkov (km)",
+      type: "number",
+      validation: (Rule) => Rule.min(0),
     }),
 
     defineField({

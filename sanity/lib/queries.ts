@@ -99,6 +99,7 @@ export const PLACES_QUERY = `
     address,
     description,
     price,
+    distanceFromSchoolKm,
     symbol,
 
     "coverImageUrl": coverImage.asset->url,

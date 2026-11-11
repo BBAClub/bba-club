@@ -20,6 +20,7 @@ const categories = [
   "Study",
   "Nightlife",
   "Outdoors",
+  "Sports",
 ];
 
 type PlaceBody = {
@@ -29,6 +30,7 @@ type PlaceBody = {
   address?: unknown;
   description?: unknown;
   price?: unknown;
+  distanceFromSchoolKm?: unknown;
   symbol?: unknown;
   latitude?: unknown;
   longitude?: unknown;
@@ -185,6 +187,19 @@ export async function PATCH(
         body.description
       );
 
+    const distanceFromSchoolKm = body.distanceFromSchoolKm;
+    if (
+      distanceFromSchoolKm != null &&
+      (typeof distanceFromSchoolKm !== "number" ||
+        !Number.isFinite(distanceFromSchoolKm) ||
+        distanceFromSchoolKm < 0)
+    ) {
+      return NextResponse.json(
+        { error: "Walking distance must be a non-negative number." },
+        { status: 400 }
+      );
+    }
+
     const price =
       getString(body.price);
 
@@ -329,6 +344,12 @@ export async function PATCH(
 
     const unsetFields:
       string[] = [];
+
+    if (distanceFromSchoolKm === null) {
+      unsetFields.push("distanceFromSchoolKm");
+    } else if (distanceFromSchoolKm !== undefined) {
+      setFields.distanceFromSchoolKm = distanceFromSchoolKm;
+    }
 
     if (
       partner &&
