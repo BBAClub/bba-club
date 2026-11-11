@@ -7,6 +7,7 @@ import {
 
 import {
   EVENTS_QUERY,
+  HAS_STUDY_RESOURCES_QUERY,
   HOMEPAGE_SETTINGS_QUERY,
   PLACES_QUERY,
 } from "@/sanity/lib/queries";
@@ -384,6 +385,7 @@ export default async function Home() {
     sanityEvents,
     sanityPlaces,
     homepageSettings,
+    hasStudyResources,
   ] =
     await Promise.all([
       client.fetch<
@@ -403,9 +405,13 @@ export default async function Home() {
       >(
         HOMEPAGE_SETTINGS_QUERY, {}, { next: { revalidate: 60 } }
       ),
+
+      client.fetch<boolean>(HAS_STUDY_RESOURCES_QUERY, {}, {
+        next: { revalidate: 60 },
+      }).catch(() => false),
     ]);
 
-  const events =
+  const sortedEvents =
     sanityEvents
       .slice()
       .sort(
@@ -429,9 +435,12 @@ export default async function Home() {
         (
           event
         ): event is Event =>
-          event !== null && event.status === "upcoming"
-      )
-      .map(({ coverImageAlt, coverImageUrl, date, description, label, location, month, price, slug, time, title }) => ({
+          event !== null
+      );
+  const upcomingEvents = sortedEvents.filter((event) => event.status === "upcoming");
+  const showPastEvents = upcomingEvents.length === 0 && sortedEvents.length > 0;
+  const selectedEvents = showPastEvents ? sortedEvents.slice(-3).reverse() : upcomingEvents.slice(0, 3);
+  const events = selectedEvents.map(({ coverImageAlt, coverImageUrl, date, description, label, location, month, price, slug, time, title }) => ({
         coverImageAlt, coverImageUrl, date, description, label, location, month, price, slug, time, title,
       }));
 
@@ -457,6 +466,8 @@ export default async function Home() {
   return (
     <HomePage
       events={events}
+      showPastEvents={showPastEvents}
+      hasStudyResources={hasStudyResources}
       places={places}
       heroImageUrl={homepageSettings?.heroImageUrl}
       heroImageAlt={homepageSettings?.heroImageAlt}

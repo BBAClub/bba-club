@@ -21,6 +21,9 @@ type HomePageProps = {
     "label" | "location" | "month" | "price" | "slug" | "time" | "title"
   >[];
 
+  showPastEvents: boolean;
+  hasStudyResources: boolean;
+
   places: Place[];
 
   heroImageUrl?: string;
@@ -31,7 +34,10 @@ type HomePageProps = {
 
 export default function HomePage({
 
-  events: upcomingEvents,
+  events,
+
+  showPastEvents,
+  hasStudyResources,
 
   places,
 
@@ -75,17 +81,15 @@ export default function HomePage({
 
               <h2 className="club-section-title">
 
-                Upcoming Events
+                {showPastEvents ? "Past Events" : "Upcoming Events"}
 
               </h2>
 
               <p className="mt-3 text-[#A9B5C3]">
 
-                Meet people, try something
-
-                new and make the most of
-
-                student life.
+                {showPastEvents
+                  ? "See what we’ve been up to at BBA Club."
+                  : "Meet people, try something new and make the most of student life."}
 
               </p>
 
@@ -105,10 +109,10 @@ export default function HomePage({
 
           </div>
 
-          {upcomingEvents.length > 0 ? (
+          {events.length > 0 ? (
 
             <div className="divide-y divide-white/15 border-y border-white/15">
-              {upcomingEvents.slice(0, 3).map(event => (
+              {events.map(event => (
                 <article key={event.slug} className="grid gap-x-6 gap-y-4 py-6 sm:grid-cols-[4.5rem_minmax(0,1fr)] lg:grid-cols-[5rem_minmax(0,1fr)_15rem]">
                   <p className="flex items-baseline gap-2 text-[#8EC5FF] sm:flex-col sm:gap-1">
                     <span className="text-3xl font-bold leading-none tabular-nums">{event.date}</span>
@@ -172,7 +176,7 @@ export default function HomePage({
 
       <HomepageExplore places={places} />
 
-      {/* STUDY HUB */}
+      {hasStudyResources && (
 
       <section
 
@@ -302,6 +306,8 @@ export default function HomePage({
         </div>
 
       </section>
+
+      )}
 
       {/* ABOUT */}
 

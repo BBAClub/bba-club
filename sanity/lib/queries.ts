@@ -143,14 +143,23 @@ export const TEAM_MEMBERS_QUERY = `
   }
 `;
 
+const PUBLIC_STUDY_RESOURCE_FILTER = `
+  _type == "studyResource" && coalesce(isPublished, true) == true
+`;
+
+export const HAS_STUDY_RESOURCES_QUERY = `
+  defined(*[
+    ${PUBLIC_STUDY_RESOURCE_FILTER}
+    && coalesce(title, "") != ""
+    && coalesce(resourceType, "") != ""
+    && coalesce(description, "") != ""
+    && coalesce(tag, "") != ""
+    && coalesce(symbol, "") != ""
+  ][0]._id)
+`;
+
 export const STUDY_RESOURCES_QUERY = `
-  *[
-    _type == "studyResource"
-    && coalesce(
-      isPublished,
-      true
-    ) == true
-  ]
+  *[${PUBLIC_STUDY_RESOURCE_FILTER}]
   | order(
       order asc,
       title asc
