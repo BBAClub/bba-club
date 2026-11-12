@@ -19,9 +19,11 @@ export async function takeRequestQuota(scope: string, key: string, limit: number
   const resetAt = now + 10 * 60_000;
 
   for (let attempt = 0; attempt < 4; attempt++) {
-    const bucket = await store.createIfNotExists({
-      _id: id, _type: "requestRate", count: 0, resetAt,
-    });
+    const bucket = (await store.getDocument<{ _rev: string; count: number; resetAt: number }>(id))
+      ?? (await store.createIfNotExists(
+        { _id: id, _type: "requestRate", count: 0, resetAt },
+        { visibility: "async" },
+      ));
     const expired = bucket.resetAt <= now;
     if (!expired && bucket.count >= limit) return false;
 

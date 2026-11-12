@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { upcomingAssignedTasks } from "@/lib/admin/tasks";
 import { pragueDate, statuses } from "@/lib/admin/task-types";
 import { DraftLink, Panel } from "@/components/AdminSectionDraft";
@@ -104,11 +105,32 @@ const sections = [
   },
 ];
 
+async function MyTasks({ assigneeId }: { assigneeId: string }) {
+  const myTasks = await upcomingAssignedTasks(assigneeId).catch(() => null);
+  const today = pragueDate();
+
+  if (!myTasks) {
+    return <DraftLink href="/admin/tasks?view=mine">Couldn’t load tasks. Open the board →</DraftLink>;
+  }
+
+  return (
+    <>
+      {myTasks.length ? <ul className="divide-y divide-white/10 text-sm">
+        {myTasks.map(task => <li key={task._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+          <DraftLink href={`/admin/tasks?task=${encodeURIComponent(task._id)}`}>{task.title}</DraftLink>
+          <span className={task.dueDate < today ? "text-red-300" : "text-[#A9B5C3]"}>
+            {statuses[task.status]} · {task.dueDate < today ? "Overdue · " : ""}<time dateTime={task.dueDate}>{task.dueDate}</time>
+          </span>
+        </li>)}
+      </ul> : <p className="text-sm text-[#A9B5C3]">No open tasks with a deadline assigned to you.</p>}
+      <DraftLink href="/admin/tasks?view=mine">Open my tasks on the board</DraftLink>
+    </>
+  );
+}
+
 export default async function AdminDashboardPage() {
   const account = await currentAccount();
   const showTasks = account && canAccess(account, "tasks");
-  const myTasks = showTasks ? await upcomingAssignedTasks(account.id) : [];
-  const today = pragueDate();
   const visible = (href: string) => {
     const permission = permissionForPath(href);
     return !account || (permission !== "users" && canAccess(account, permission));
@@ -120,15 +142,9 @@ export default async function AdminDashboardPage() {
       {account?.role === "member" && account.permissions.length === 0 && <p className="mb-5 rounded-xl border border-white/10 p-4 text-sm text-[#A9B5C3]">Your account is approved. Ask an administrator to assign access to the sections you need.</p>}
       {showTasks && <div className="my-6">
         <Panel title="My tasks">
-          {myTasks.length ? <ul className="divide-y divide-white/10 text-sm">
-            {myTasks.map(task => <li key={task._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-              <DraftLink href={`/admin/tasks?task=${encodeURIComponent(task._id)}`}>{task.title}</DraftLink>
-              <span className={task.dueDate < today ? "text-red-300" : "text-[#A9B5C3]"}>
-                {statuses[task.status]} · {task.dueDate < today ? "Overdue · " : ""}<time dateTime={task.dueDate}>{task.dueDate}</time>
-              </span>
-            </li>)}
-          </ul> : <p className="text-sm text-[#A9B5C3]">No open tasks with a deadline assigned to you.</p>}
-          <DraftLink href="/admin/tasks?view=mine">Open my tasks on the board</DraftLink>
+          <Suspense fallback={<p role="status" className="text-sm text-[#A9B5C3]">Loading your tasks…</p>}>
+            <MyTasks assigneeId={account.id} />
+          </Suspense>
         </Panel>
       </div>}
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">

@@ -162,10 +162,15 @@ export default function AdminTasksBoard({
               : task.dueDate >= today && task.dueDate <= soon))),
   );
 
-  async function mutate(body: object) {
+  async function mutate(body: object, move?: { task: Task; status: Fields["status"] }) {
     if (busy) return false;
     setBusy(true);
     setError("");
+    if (move) {
+      setTasks((items) =>
+        items.map((task) => task._id === move.task._id ? { ...task, status: move.status } : task),
+      );
+    }
     try {
       const response = await fetch("/api/admin/tasks", {
         method: "POST",
@@ -179,6 +184,8 @@ export default function AdminTasksBoard({
       };
       if (!response.ok)
         throw new Error(result.error || "Could not save changes.");
+      if (move && !result.task)
+        throw new Error("Could not confirm the move. Refresh and check the task status.");
       if (result.task) {
         const saved = result.task;
         setTasks((items) =>
@@ -193,6 +200,11 @@ export default function AdminTasksBoard({
         );
       return true;
     } catch (err) {
+      if (move) {
+        setTasks((items) =>
+          items.map((task) => task._id === move.task._id ? move.task : task),
+        );
+      }
       setError(err instanceof Error ? err.message : "Could not save changes.");
       return false;
     } finally {
@@ -234,7 +246,7 @@ export default function AdminTasksBoard({
         id: task._id,
         revision: task._rev,
         status,
-      });
+      }, { task, status });
   }
   function assigneeLabel(id: string) {
     return names[id] || "Former member";

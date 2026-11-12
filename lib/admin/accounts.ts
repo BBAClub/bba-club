@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { randomBytes, randomInt } from "node:crypto";
 import { Resend } from "resend";
@@ -75,7 +76,7 @@ export async function readAccount(id: string) {
   const doc = await db().getDocument<EncryptedDocument>(id);
   return doc ? decode(doc) : null;
 }
-export async function currentAccount() {
+export const currentAccount = cache(async function currentAccount() {
   if (!accountsEnabled()) return null;
   const value = (await cookies()).get(ACCOUNT_COOKIE)?.value;
   if (!value || value.length > 2048) return null;
@@ -90,7 +91,7 @@ export async function currentAccount() {
   // Direct Doc API: no CDN or eventually-consistent query for access revocation.
   const account = await readAccount(session.id);
   return account && account.sessionVersion === session.version ? account : null;
-}
+});
 export async function issueSession(account: AdminAccount) {
   const session: Session = {
     id: account.id,
@@ -113,25 +114,28 @@ export async function clearAccountSession() {
 async function rateLimit(key: string, limit: number, windowMs: number) {
   const id = `adminRate.${digest("rate", key)}`;
   const now = Date.now();
+  const store = db();
   for (let attempt = 0; attempt < 4; attempt++) {
-    const doc = await db().createIfNotExists({
-      _id: id,
-      _type: "adminRate",
-      count: 0,
-      resetAt: now + windowMs,
-    });
+    const doc = (await store.getDocument<{ _rev: string; count: number; resetAt: number }>(id))
+      ?? (await store.createIfNotExists({
+        _id: id,
+        _type: "adminRate",
+        count: 0,
+        resetAt: now + windowMs,
+      }));
     const expired = doc.resetAt <= now;
     if (!expired && doc.count >= limit)
       throw new AccountError("Too many requests. Please try again later.", 429);
     try {
-      await db()
+      await store
         .patch(id)
         .ifRevisionId(doc._rev)
         .set({
           count: expired ? 1 : doc.count + 1,
           resetAt: expired ? now + windowMs : doc.resetAt,
         })
-        .commit({ visibility: "sync" });
+        // The revision guard applies at commit. This counter is read by ID.
+        .commit({ visibility: "async" });
       return;
     } catch (error) {
       if ((error as { statusCode?: number }).statusCode !== 409) throw error;
